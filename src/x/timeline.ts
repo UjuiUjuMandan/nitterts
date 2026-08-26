@@ -26,6 +26,14 @@ export type TweetMedia = {
   alt: string;
 };
 
+export type TweetLink = {
+  kind: "url" | "mention" | "hashtag" | "cashtag";
+  start: number;
+  end: number;
+  display: string;
+  url: string;
+};
+
 export type Tweet = {
   id: string;
   conversationId: string;
@@ -38,6 +46,7 @@ export type Tweet = {
   views: number;
   replyTo: string[];
   media: TweetMedia[];
+  links: TweetLink[];
   retweet?: Tweet;
   quote?: Tweet;
   pinned: boolean;
@@ -193,8 +202,10 @@ export function parseTweet(value: Record<string, unknown>, depth = 0): Tweet | u
     views: Number(stringValue(recordAt(value, ["views", "count"]))) || 0,
     replyTo: collectReplyUsers(value, legacy),
     media: parseMedia(value, legacy),
+    links: parseLinks(value, legacy),
     pinned: false,
   };
+
 
   const retweetResult = firstRecord(value, [
     ["legacy", "retweeted_status_result", "result"],
@@ -299,6 +310,75 @@ function bestVideoUrl(variants: unknown[] | undefined): string {
     .sort((a, b) => numberValue(b.bit_rate, b.bitrate) - numberValue(a.bit_rate, a.bitrate))
     .map((variant) => stringValue(variant.url))
     .find(Boolean) ?? "";
+}
+
+function parseLinks(
+  value: Record<string, unknown>,
+  legacy: Record<string, unknown> | undefined,
+): TweetLink[] {
+  const links: TweetLink[] = [];
+  const push = (kind: TweetLink["kind"], entity: Record<string, unknown> | undefined, url: string, display?: string) => {
+    if (!entity) return;
+    const range = optionalArray(entity.indices) ?? [];
+    const start = numberValue(range[0]);
+    const end = numberValue(range[1]);
+    if (end <= start || !url) return;
+    links.push({ kind, start, end, url, display: display || "" });
+  };
+
+  for (const entity of optionalArray(value.url_entities) ?? []) {
+    const record = optionalRecord(entity);
+    if (!record) continue;
+    push("url", record, stringValue(record.expanded_url) || stringValue(record.url), stringValue(record.display_url));
+  }
+  for (const entity of optionalArray(value.hashtag_entities) ?? []) {
+    const record = optionalRecord(entity);
+    if (!record) continue;
+    const text = stringValue(record.text);
+    push("hashtag", record, `https://x.com/search?q=%23${encodeURIComponent(text)}`, `#${text}`);
+  }
+  for (const entity of optionalArray(value.cashtag_entities) ?? []) {
+    const record = optionalRecord(entity);
+    if (!record) continue;
+    const text = stringValue(record.text);
+    push("cashtag", record, `https://x.com/search?q=%24${encodeURIComponent(text)}`, `$${text}`);
+  }
+  for (const entity of optionalArray(value.mention_entities) ?? []) {
+    const record = optionalRecord(entity);
+    if (!record) continue;
+    const screenName = stringValue(record.screen_name);
+    push("mention", record, `/${screenName}`, `@${screenName}`);
+  }
+
+  const legacyEntities = optionalRecord(legacy?.entities)
+    ?? optionalRecord(recordAt(value, ["note_tweet", "note_tweet_results", "result", "entity_set"]));
+  if (legacyEntities) {
+    for (const entity of optionalArray(legacyEntities.urls) ?? []) {
+      const record = optionalRecord(entity);
+      if (!record) continue;
+      push("url", record, stringValue(record.expanded_url) || stringValue(record.url), stringValue(record.display_url));
+    }
+    for (const entity of optionalArray(legacyEntities.hashtags) ?? []) {
+      const record = optionalRecord(entity);
+      if (!record) continue;
+      const text = stringValue(record.text);
+      push("hashtag", record, `https://x.com/search?q=%23${encodeURIComponent(text)}`, `#${text}`);
+    }
+    for (const entity of optionalArray(legacyEntities.symbols) ?? []) {
+      const record = optionalRecord(entity);
+      if (!record) continue;
+      const text = stringValue(record.text);
+      push("cashtag", record, `https://x.com/search?q=%24${encodeURIComponent(text)}`, `$${text}`);
+    }
+    for (const entity of optionalArray(legacyEntities.user_mentions) ?? []) {
+      const record = optionalRecord(entity);
+      if (!record) continue;
+      const screenName = stringValue(record.screen_name);
+      push("mention", record, `/${screenName}`, `@${screenName}`);
+    }
+  }
+
+  return links.sort((a, b) => a.start - b.start);
 }
 
 function addTweet(tweets: Tweet[], seen: Set<string>, tweet: Tweet): void {

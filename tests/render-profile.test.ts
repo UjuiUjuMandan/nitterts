@@ -42,6 +42,11 @@ describe("renderProfilePage", () => {
             views: 0,
             replyTo: [],
             media: [],
+            links: [
+              { kind: "url", start: 0, end: 5, url: "https://nim-lang.org/docs", display: "nim-lang.org/docs" },
+              { kind: "mention", start: 6, end: 12, url: "/alice", display: "" },
+              { kind: "url", start: 13, end: 18, url: "javascript:alert(1)", display: "evil" },
+            ],
             pinned: false,
           },
         ],
@@ -66,6 +71,9 @@ describe("renderProfilePage", () => {
     expect(html).toContain('class="profile-joindate"');
     expect(html).toContain("Dec 2013");
     expect(html).toContain(">Likes<");
+    expect(html).toContain('href="https://nim-lang.org/docs"');
+    expect(html).toContain('href="/alice"');
+    expect(html).not.toContain('href="javascript:');
 
     const replies = renderProfilePage(
       {

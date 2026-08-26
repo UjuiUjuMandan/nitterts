@@ -1,6 +1,6 @@
 import { mediaProxyUrl } from "../media";
 import type { Profile } from "../x/profile";
-import type { ProfileTab, Timeline, Tweet } from "../x/timeline";
+import type { ProfileTab, Timeline, Tweet, TweetLink } from "../x/timeline";
 
 const TAB_PATHS: Record<ProfileTab, string> = {
   tweets: "",
@@ -118,7 +118,7 @@ export function renderTweet(source: Tweet, main = false): string {
         </div>
       </div>
       ${tweet.replyTo.length ? `<div class="replying-to">Replying to ${tweet.replyTo.map((name) => `@${escapeHtml(name)}`).join(" ")}</div>` : ""}
-      <div class="tweet-content media-body" dir="auto">${formatText(tweet.text)}</div>
+      <div class="tweet-content media-body" dir="auto">${linkify(tweet.text, tweet.links)}</div>
       ${media}
       ${quote}
       <div class="tweet-stats"><span class="tweet-stat">reply ${formatNumber(tweet.replies)}</span><span class="tweet-stat">retweet ${formatNumber(tweet.retweets)}</span><span class="tweet-stat">like ${formatNumber(tweet.likes)}</span>${tweet.views ? `<span class="tweet-stat">view ${formatNumber(tweet.views)}</span>` : ""}</div>
@@ -141,7 +141,7 @@ function renderMedia(tweet: Tweet): string {
 }
 
 function renderQuote(tweet: Tweet): string {
-  return `<blockquote class="quote"><div class="tweet-name-row"><div class="fullname-and-username"><strong class="fullname">${escapeHtml(tweet.author.name)}</strong><span class="username">@${escapeHtml(tweet.author.username)}</span></div></div><div class="quote-text" dir="auto">${formatText(tweet.text)}</div></blockquote>`;
+  return `<blockquote class="quote"><div class="tweet-name-row"><div class="fullname-and-username"><strong class="fullname">${escapeHtml(tweet.author.name)}</strong><span class="username">@${escapeHtml(tweet.author.username)}</span></div></div><div class="quote-text" dir="auto">${linkify(tweet.text, tweet.links)}</div></blockquote>`;
 }
 
 function renderStat(label: string, value: number): string {
@@ -150,6 +150,32 @@ function renderStat(label: string, value: number): string {
 
 function formatText(value: string): string {
   return escapeHtml(value).replace(/\n/g, "<br>");
+}
+
+function linkify(text: string, links: TweetLink[]): string {
+  if (!links.length) return formatText(text);
+  const ordered = [...links]
+    .filter((link) => link.end > link.start && link.end <= text.length)
+    .sort((a, b) => a.start - b.start || b.end - a.end);
+
+  let result = "";
+  let cursor = 0;
+  for (const link of ordered) {
+    if (link.start < cursor) continue;
+    const href = safeHref(link);
+    if (!href) continue;
+    const display = link.display || text.slice(link.start, link.end);
+    result += formatText(text.slice(cursor, link.start));
+    result += `<a href="${escapeAttribute(href)}" title="${escapeAttribute(link.kind === "url" ? link.url : "")}">${formatText(display)}</a>`;
+    cursor = link.end;
+  }
+  return result + formatText(text.slice(cursor));
+}
+
+function safeHref(link: TweetLink): string {
+  if (link.kind === "mention") return `/${encodeURIComponent(link.url.replace(/^\//, ""))}`;
+  if (!/^https?:\/\//i.test(link.url)) return "";
+  return link.url;
 }
 
 function formatDate(value: string): string {

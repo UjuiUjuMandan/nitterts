@@ -17,6 +17,12 @@ describe("parseTimeline", () => {
           },
         },
       },
+      url_entities: [
+        { expanded_url: "https://nim.example", display_url: "nim.example", url: "https://t.co/x", indices: [7, 23] },
+      ],
+      mention_entities: [
+        { screen_name: "bob", indices: [0, 4] },
+      ],
     };
     const timeline = parseTimeline({
       data: {
@@ -45,6 +51,62 @@ describe("parseTimeline", () => {
       id: "200",
       text: "modern",
       createdAt: new Date(1748606400000).toISOString(),
+    });
+    expect(timeline.tweets[0].links).toEqual([
+      { kind: "mention", start: 0, end: 4, url: "/bob", display: "@bob" },
+      { kind: "url", start: 7, end: 23, url: "https://nim.example", display: "nim.example" },
+    ]);
+  });
+
+  it("parses note tweet entity_set links", () => {
+    const note = {
+      __typename: "Tweet",
+      rest_id: "300",
+      legacy: { __typename: "LegacyTweet", lang: "en" },
+      note_tweet: {
+        note_tweet_results: {
+          result: {
+            text: "long text with a link inside",
+            entity_set: {
+              urls: [{ expanded_url: "https://note.example", url: "https://t.co/n", indices: [17, 22] }],
+            },
+          },
+        },
+      },
+      core: {
+        user_results: {
+          result: {
+            rest_id: "1",
+            core: { screen_name: "alice", name: "Alice" },
+            avatar: { image_url: "https://pbs.twimg.com/alice_normal.jpg" },
+          },
+        },
+      },
+    };
+    const timeline = parseTimeline({
+      data: {
+        user: {
+          result: {
+            timeline: {
+              timeline: {
+                instructions: [
+                  {
+                    type: "TimelineAddEntries",
+                    entries: [
+                      { entryId: "tweet-300", content: { itemContent: { tweet_results: { result: note } } } },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+    });
+    expect(timeline.tweets[0]).toMatchObject({
+      id: "300",
+      text: "long text with a link inside",
+      links: [{ kind: "url", start: 17, end: 22, url: "https://note.example" }],
     });
   });
 
