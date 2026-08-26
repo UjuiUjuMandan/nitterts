@@ -51,6 +51,7 @@ describe("renderProfilePage", () => {
     expect(html).toContain('class="profile-card-avatar"');
     expect(html).toContain('class="timeline-item tweet"');
     expect(html).toContain('class="tweet-body"');
+    expect(html).toContain('class="tweet-link" href="/alice/status/10"');
 
     const suspended = renderProfilePage(
       {

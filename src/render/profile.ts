@@ -95,6 +95,7 @@ export function renderTweet(source: Tweet, main = false): string {
 
   const permalink = `/${encodeURIComponent(tweet.author.username)}/status/${encodeURIComponent(tweet.id)}`;
   return `<article class="timeline-item tweet${main ? " main-tweet-item" : ""}">
+    ${main ? "" : `<a class="tweet-link" href="${permalink}" aria-label="View post"></a>`}
     <div class="tweet-body">
       ${context}
       <div class="tweet-header">
