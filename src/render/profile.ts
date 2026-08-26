@@ -1,6 +1,6 @@
 import { mediaProxyUrl } from "../media";
 import type { Profile } from "../x/profile";
-import type { PhotoRailItem, ProfileTab, Timeline, Tweet, TweetLink } from "../x/timeline";
+import type { PhotoRailItem, ProfileTab, Timeline, Tweet, TweetLink, VerifiedType } from "../x/timeline";
 
 const TAB_PATHS: Record<ProfileTab, string> = {
   tweets: "",
@@ -79,7 +79,7 @@ function renderProfileCard(profile: Profile): string {
     <div class="profile-card-info">
       ${avatar}
       <div class="profile-card-tabs-name">
-        <a class="profile-card-fullname" href="/${encodeURIComponent(profile.username)}">${escapeHtml(profile.name)}</a>${profile.blueVerified ? '<span class="verified" title="Verified">&#10003;</span>' : ""}
+        <a class="profile-card-fullname" href="/${encodeURIComponent(profile.username)}">${escapeHtml(profile.name)}</a>${verifiedBadge(profile.verifiedType)}<a class="profile-card-username" href="/${encodeURIComponent(profile.username)}">@${escapeHtml(profile.username)}</a>
         <a class="profile-card-username" href="/${encodeURIComponent(profile.username)}">@${escapeHtml(profile.username)}</a>
       </div>
     </div>
@@ -145,7 +145,7 @@ export function renderTweet(source: Tweet, main = false): string {
       <div class="tweet-header">
         ${tweet.author.avatar ? `<a class="tweet-avatar" href="/${encodeURIComponent(tweet.author.username)}" aria-label="View @${escapeAttribute(tweet.author.username)} profile"><img class="avatar round" src="${escapeAttribute(mediaProxyUrl(tweet.author.avatar))}" alt=""></a>` : ""}
         <div class="tweet-name-row">
-          <div class="fullname-and-username"><a class="fullname" href="/${encodeURIComponent(tweet.author.username)}">${escapeHtml(tweet.author.name)}</a>${tweet.author.blueVerified ? '<span class="verified" title="Verified">&#10003;</span>' : ""}<a class="username" href="/${encodeURIComponent(tweet.author.username)}">@${escapeHtml(tweet.author.username)}</a></div>
+          <div class="fullname-and-username"><a class="fullname" href="/${encodeURIComponent(tweet.author.username)}">${escapeHtml(tweet.author.name)}</a>${verifiedBadge(tweet.author.verifiedType)}<a class="username" href="/${encodeURIComponent(tweet.author.username)}">@${escapeHtml(tweet.author.username)}</a></div>
           <span class="tweet-date"><a href="${permalink}">${escapeHtml(formatDate(tweet.createdAt))}</a></span>
         </div>
       </div>
@@ -153,9 +153,20 @@ export function renderTweet(source: Tweet, main = false): string {
       <div class="tweet-content media-body" dir="auto">${linkify(tweet.text, tweet.links)}</div>
       ${media}
       ${quote}
-      <div class="tweet-stats"><span class="tweet-stat">reply ${formatNumber(tweet.replies)}</span><span class="tweet-stat">retweet ${formatNumber(tweet.retweets)}</span><span class="tweet-stat">like ${formatNumber(tweet.likes)}</span>${tweet.views ? `<span class="tweet-stat">view ${formatNumber(tweet.views)}</span>` : ""}</div>
+      <div class="tweet-stats"><span class="tweet-stat"><span class="icon" aria-hidden="true">&#8617;</span> ${formatNumber(tweet.replies)}</span><span class="tweet-stat"><span class="icon" aria-hidden="true">&#8635;</span> ${formatNumber(tweet.retweets)}</span><span class="tweet-stat"><span class="icon" aria-hidden="true">&#9829;</span> ${formatNumber(tweet.likes)}</span>${tweet.views ? `<span class="tweet-stat"><span class="icon" aria-hidden="true">&#9711;</span> ${formatNumber(tweet.views)}</span>` : ""}</div>
+      ${main ? `<p class="tweet-published">${escapeHtml(formatFullDate(tweet.createdAt))}</p>` : ""}
     </div>
   </article>`;
+}
+
+function formatFullDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en", { dateStyle: "long", timeStyle: "short", timeZone: "UTC" })
+    .format(date)
+    .replace(/(\d{4}),? (\d{1,2}):(\d{2})/, "$1 · $2:$3")
+    .replaceAll(",", "")
+    .replace(" at ", " · ") + " UTC";
 }
 
 function renderMedia(tweet: Tweet): string {
@@ -180,6 +191,12 @@ function renderQuote(tweet: Tweet): string {
 
 function renderStat(label: string, value: number): string {
   return `<li><span class="profile-stat-header">${label}</span><span class="profile-stat-num">${formatNumber(value)}</span></li>`;
+}
+
+function verifiedBadge(type: VerifiedType): string {
+  if (type === "none") return "";
+  const title = type === "business" ? "Verified business account" : type === "government" ? "Verified government account" : "Verified blue account";
+  return `<span class="verified verified-${type}" title="${title}">&#10003;</span>`;
 }
 
 function formatText(value: string): string {

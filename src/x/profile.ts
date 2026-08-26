@@ -1,3 +1,5 @@
+import type { VerifiedType } from "./timeline";
+
 export type Profile = {
   id: string;
   username: string;
@@ -15,6 +17,7 @@ export type Profile = {
   likes: number;
   protected: boolean;
   blueVerified: boolean;
+  verifiedType: VerifiedType;
   suspended: boolean;
 };
 
@@ -23,6 +26,7 @@ export function parseProfile(value: unknown): Profile {
   const data = asRecord(root.data);
   const container = asOptionalRecord(data.userResult) ?? asOptionalRecord(data.user);
   const result = asRecord(container?.result);
+  const verified = verifiedTypeOf(result);
 
   if (result.unavailable_reason === "Suspended" || result.reason === "Suspended") {
     return emptyProfile(true);
@@ -49,7 +53,8 @@ export function parseProfile(value: unknown): Profile {
       media: numberValue(legacy.media_count),
       likes: numberValue(legacy.favourites_count),
       protected: booleanValue(legacy.protected),
-      blueVerified: booleanValue(result.is_blue_verified),
+      blueVerified: verified !== "none",
+      verifiedType: verified,
       suspended: false,
     };
   }
@@ -92,9 +97,18 @@ export function parseProfile(value: unknown): Profile {
     media: numberValue(tweetCounts?.media_tweets),
     likes: numberValue(actionCounts?.favorites_count),
     protected: booleanValue(privacy?.protected),
-    blueVerified: booleanValue(result.is_blue_verified),
+    blueVerified: verified !== "none",
+    verifiedType: verified,
     suspended: false,
   };
+}
+
+function verifiedTypeOf(result: Record<string, unknown>): VerifiedType {
+  const verification = asOptionalRecord(result.verification);
+  const type = stringValue(verification?.verified_type);
+  if (type === "Business") return "business";
+  if (type === "Government") return "government";
+  return result.is_blue_verified === true || verification?.is_blue_verified === true ? "blue" : "none";
 }
 
 export class ProfileNotFoundError extends Error {
@@ -122,6 +136,7 @@ function emptyProfile(suspended: boolean): Profile {
     likes: 0,
     protected: false,
     blueVerified: false,
+    verifiedType: "none",
     suspended,
   };
 }

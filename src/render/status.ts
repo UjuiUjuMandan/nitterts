@@ -32,6 +32,7 @@ export function renderStatusPage(conversation: Conversation): string {
         ${after ? `<div class="after-tweet thread-line">${after}</div>` : ""}
       </section>
       ${replies ? `<div class="reply-sort"><span class="reply-sort-label">Replies</span><strong>Relevant</strong></div><section class="replies" id="r">${replies}</section>` : ""}
+      <div class="top-ref"><a href="#m" title="Back to top">&#9650;</a></div>
     </main>
   </div>
 </body>

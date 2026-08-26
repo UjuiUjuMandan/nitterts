@@ -11,12 +11,15 @@ const FIELD_TOGGLES = {
 
 export type ProfileTab = "tweets" | "replies" | "media";
 
+export type VerifiedType = "none" | "blue" | "business" | "government";
+
 export type TweetAuthor = {
   id: string;
   username: string;
   name: string;
   avatar: string;
   blueVerified: boolean;
+  verifiedType: VerifiedType;
 };
 
 export type TweetMedia = {
@@ -257,6 +260,10 @@ function parseAuthor(value: Record<string, unknown> | undefined): TweetAuthor {
   const legacy = optionalRecord(value?.legacy);
   const core = optionalRecord(value?.core);
   const avatar = optionalRecord(value?.avatar);
+  const verifiedType = parseVerifiedType(
+    stringValue(optionalRecord(value?.verification)?.verified_type),
+    value?.is_blue_verified === true || optionalRecord(value?.verification)?.is_blue_verified === true,
+  );
   return {
     id: stringValue(value?.rest_id) || stringValue(legacy?.id_str),
     username: stringValue(core?.screen_name) || stringValue(legacy?.screen_name),
@@ -265,8 +272,15 @@ function parseAuthor(value: Record<string, unknown> | undefined): TweetAuthor {
       "_normal",
       "",
     ),
-    blueVerified: value?.is_blue_verified === true,
+    blueVerified: verifiedType !== "none",
+    verifiedType,
   };
+}
+
+function parseVerifiedType(value: string, blue: boolean): VerifiedType {
+  if (value === "Business") return "business";
+  if (value === "Government") return "government";
+  return blue ? "blue" : "none";
 }
 
 function collectReplyUsers(

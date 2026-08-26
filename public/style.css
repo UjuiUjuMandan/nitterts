@@ -220,6 +220,14 @@ nav {
   font-weight: 700;
 }
 
+.verified-business {
+  color: #fac82b;
+}
+
+.verified-government {
+  color: #c1b6a4;
+}
+
 .profile-card-extra {
   display: contents;
 }
@@ -521,6 +529,36 @@ nav {
   min-width: 1em;
   margin-right: 0.8em;
   padding-top: 5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tweet-stat .icon {
+  font-size: 13px;
+  line-height: 1;
+}
+
+.tweet-published {
+  margin: 6px 0 0;
+  color: var(--grey);
+}
+
+.top-ref {
+  padding: 10px 0;
+  background: var(--bg-panel);
+  text-align: center;
+}
+
+.top-ref a {
+  display: inline-block;
+  color: var(--accent);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.top-ref a:hover {
+  color: var(--accent-light);
 }
 
 .attachments {
