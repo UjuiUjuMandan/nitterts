@@ -20,6 +20,7 @@ export function renderStatusPage(conversation: Conversation): string {
   <meta name="theme-color" content="#1f1f1f">
   <title>${escapeHtml(titleText)} | nitter</title>
   <link rel="icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/css/fontello.css">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -32,7 +33,7 @@ export function renderStatusPage(conversation: Conversation): string {
         ${after ? `<div class="after-tweet thread-line">${after}</div>` : ""}
       </section>
       ${replies ? `<div class="reply-sort"><span class="reply-sort-label">Replies</span><strong>Relevant</strong></div><section class="replies" id="r">${replies}</section>` : ""}
-      <div class="top-ref"><a href="#m" title="Back to top">&#9650;</a></div>
+      <div class="top-ref"><div class="icon-container"><a class="icon-down" href="#m" title="Back to top"></a></div></div>
     </main>
   </div>
 </body>

@@ -221,12 +221,51 @@ nav {
   line-height: 1;
 }
 
-.verified svg {
-  display: block;
+.icon-container {
+  display: inline;
 }
 
-.verified-blue {
+.verified-icon {
+  display: inline-block;
+  position: relative;
+  width: 14px;
+  height: 14px;
+  margin: 0 0 2px 2px;
+}
+
+.verified-icon-circle {
+  position: absolute;
+  font-size: 15px;
+}
+
+.verified-icon-check {
+  position: absolute;
+  font-size: 9px;
+  margin: 5px 3px;
+}
+
+.verified-icon.blue .verified-icon-circle {
   color: var(--verified-blue);
+}
+
+.verified-icon.blue .verified-icon-check {
+  color: var(--fg-color);
+}
+
+.verified-icon.business .verified-icon-circle {
+  color: #fac82b;
+}
+
+.verified-icon.business .verified-icon-check {
+  color: var(--bg-panel);
+}
+
+.verified-icon.government .verified-icon-circle {
+  color: #c1b6a4;
+}
+
+.verified-icon.government .verified-icon-check {
+  color: var(--bg-panel);
 }
 
 .verified-business {
@@ -283,6 +322,11 @@ nav {
   width: 100%;
   color: var(--accent);
   justify-content: space-between;
+}
+
+.photo-rail-header a,
+.photo-rail-header-mobile {
+  color: var(--accent);
 }
 
 .photo-rail-grid {
@@ -540,12 +584,11 @@ nav {
   padding-top: 5px;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
 }
 
-.tweet-stat .icon {
-  font-size: 13px;
-  line-height: 1;
+.tweet-stat .icon-container {
+  display: inline-flex;
+  align-items: center;
 }
 
 .tweet-published {

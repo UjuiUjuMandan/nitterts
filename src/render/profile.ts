@@ -39,6 +39,7 @@ export function renderProfilePage(
   <meta name="theme-color" content="#1f1f1f">
   <title>${escapeHtml(title)}</title>
   <link rel="icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/css/fontello.css">
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -63,7 +64,7 @@ export function renderProfilePage(
 }
 
 export function renderErrorPage(message: string, status: number): string {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${status} | nitter</title><link rel="stylesheet" href="/style.css"></head><body>${renderNavbar()}<div class="container"><main class="panel-container"><section class="error-panel"><h1>${status}</h1><p>${escapeHtml(message)}</p></section></main></div></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${status} | nitter</title><link rel="stylesheet" href="/css/fontello.css"><link rel="stylesheet" href="/style.css"></head><body>${renderNavbar()}<div class="container"><main class="panel-container"><section class="error-panel"><h1>${status}</h1><p>${escapeHtml(message)}</p></section></main></div></body></html>`;
 }
 
 export function renderNavbar(): string {
@@ -106,9 +107,9 @@ export function renderPhotoRail(profile: Profile, photos: PhotoRailItem[]): stri
     .map((photo) => `<a href="${base}/status/${encodeURIComponent(photo.tweetId)}#m"><img loading="lazy" src="${escapeAttribute(mediaProxyUrl(thumbUrl(photo.url)))}" alt=""></a>`)
     .join("");
   return `<section class="photo-rail-card">
-    <div class="photo-rail-header"><a href="${base}/media">${formatNumber(profile.media || photos.length)} Photos and videos</a></div>
+    <div class="photo-rail-header"><a href="${base}/media"><div class="icon-container"><span class="icon-picture"></span> ${formatNumber(profile.media || photos.length)} Photos and videos</div></a></div>
     <input id="photo-rail-grid-toggle" type="checkbox">
-    <label class="photo-rail-header-mobile" for="photo-rail-grid-toggle">${formatNumber(profile.media || photos.length)} Photos and videos</label>
+    <label class="photo-rail-header-mobile" for="photo-rail-grid-toggle"><div class="icon-container"><span class="icon-picture"></span> ${formatNumber(profile.media || photos.length)} Photos and videos</div><div class="icon-container"><span class="icon-down"></span></div></label>
     <div class="photo-rail-grid">${grid}</div>
   </section>`;
 }
@@ -152,7 +153,7 @@ export function renderTweet(source: Tweet, main = false): string {
       <div class="tweet-content media-body" dir="auto">${linkify(tweet.text, tweet.links)}</div>
       ${media}
       ${quote}
-      <div class="tweet-stats"><span class="tweet-stat"><span class="icon" aria-hidden="true">&#8617;</span> ${formatNumber(tweet.replies)}</span><span class="tweet-stat"><span class="icon" aria-hidden="true">&#8635;</span> ${formatNumber(tweet.retweets)}</span><span class="tweet-stat"><span class="icon" aria-hidden="true">&#9829;</span> ${formatNumber(tweet.likes)}</span>${tweet.views ? `<span class="tweet-stat"><span class="icon" aria-hidden="true">&#9711;</span> ${formatNumber(tweet.views)}</span>` : ""}</div>
+      <div class="tweet-stats"><span class="tweet-stat"><div class="icon-container"><span class="icon-comment"></span> ${formatNumber(tweet.replies)}</div></span><span class="tweet-stat"><div class="icon-container"><span class="icon-retweet"></span> ${formatNumber(tweet.retweets)}</div></span><span class="tweet-stat"><div class="icon-container"><span class="icon-heart"></span> ${formatNumber(tweet.likes)}</div></span>${tweet.views ? `<span class="tweet-stat"><div class="icon-container"><span class="icon-views"></span> ${formatNumber(tweet.views)}</div></span>` : ""}</div>
       ${main ? `<p class="tweet-published">${escapeHtml(formatFullDate(tweet.createdAt))}</p>` : ""}
     </div>
   </article>`;
@@ -195,8 +196,7 @@ function renderStat(label: string, value: number): string {
 function verifiedBadge(type: VerifiedType): string {
   if (type === "none") return "";
   const title = type === "business" ? "Verified business account" : type === "government" ? "Verified government account" : "Verified blue account";
-  const color = type === "business" ? "#fac82b" : type === "government" ? "#c1b6a4" : "var(--verified-blue)";
-  return `<span class="verified verified-${type}" title="${title}" aria-label="${title}"><svg viewBox="0 0 16 16" width="14" height="14"><circle cx="8" cy="8" r="7" fill="${color}"/><path d="M4.6 8.2l2.2 2.2 4.6-4.8" fill="none" stroke="#161616" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>`;
+  return `<div class="verified-icon ${type}" title="${title}"><div class="icon-container"><span class="icon-circle verified-icon-circle" title="${title}"></span></div><div class="icon-container"><span class="icon-ok verified-icon-check" title="${title}"></span></div></div>`;
 }
 
 function formatText(value: string): string {

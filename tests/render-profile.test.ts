@@ -131,8 +131,8 @@ describe("renderProfilePage", () => {
       },
       { tweets: [] },
     );
-    expect(verified).toContain("verified-business");
-    expect(verified).toContain("<svg");
+    expect(verified).toContain("verified-icon business");
+    expect(verified).toContain("icon-circle");
 
     const replies = renderProfilePage(
       {
