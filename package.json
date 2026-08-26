@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler pages dev",
+    "dev": "wrangler pages dev public",
     "deploy": "wrangler pages deploy",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",

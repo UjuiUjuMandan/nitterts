@@ -47,6 +47,10 @@ describe("renderProfilePage", () => {
     expect(html).not.toContain("<img src=x");
     expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
     expect(html).toContain("/media?url=https%3A%2F%2Fpbs.twimg.com%2Falice.jpg");
+    expect(html).toContain('class="profile-tabs"');
+    expect(html).toContain('class="profile-card-avatar"');
+    expect(html).toContain('class="timeline-item tweet"');
+    expect(html).toContain('class="tweet-body"');
 
     const suspended = renderProfilePage(
       {
