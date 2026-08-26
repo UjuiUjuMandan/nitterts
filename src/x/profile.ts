@@ -4,9 +4,14 @@ export type Profile = {
   name: string;
   bio: string;
   avatar: string;
+  banner: string;
+  location: string;
+  website: string;
+  joinedAt: string;
   followers: number;
   following: number;
   tweets: number;
+  likes: number;
   protected: boolean;
   blueVerified: boolean;
   suspended: boolean;
@@ -33,9 +38,14 @@ export function parseProfile(value: unknown): Profile {
       name: stringValue(legacy.name),
       bio: stringValue(legacy.description),
       avatar: stringValue(legacy.profile_image_url_https).replace("_normal", ""),
+      banner: stringValue(legacy.profile_banner_url),
+      location: stringValue(legacy.location),
+      website: expandedWebsite(recordAtLegacy(legacy, ["entities", "url"]), stringValue(legacy.url)),
+      joinedAt: stringValue(legacy.created_at),
       followers: numberValue(legacy.followers_count),
       following: numberValue(legacy.friends_count),
       tweets: numberValue(legacy.statuses_count),
+      likes: numberValue(legacy.favourites_count),
       protected: booleanValue(legacy.protected),
       blueVerified: booleanValue(result.is_blue_verified),
       suspended: false,
@@ -44,8 +54,12 @@ export function parseProfile(value: unknown): Profile {
 
   const core = asRecord(result.core);
   const avatar = asRecord(result.avatar);
+  const banner = asRecord(result.banner);
+  const location = asRecord(result.location);
+  const website = asRecord(result.website);
   const bio = asOptionalRecord(result.profile_bio);
   const counts = asOptionalRecord(result.relationship_counts);
+  const actionCounts = asOptionalRecord(result.action_counts);
   const tweetCounts = asOptionalRecord(result.tweet_counts);
   const privacy = asOptionalRecord(result.privacy);
   const username = stringValue(core.screen_name);
@@ -60,9 +74,20 @@ export function parseProfile(value: unknown): Profile {
     name: stringValue(core.name),
     bio: stringValue(bio?.description),
     avatar: stringValue(avatar.image_url).replace("_normal", ""),
+    banner: stringValue(banner.image_url),
+    location: stringValue(location.location),
+    website: expandedWebsite(
+      recordAtLegacy(bio ?? {}, ["entities", "url"]),
+      stringValue(website.url),
+    ),
+    joinedAt: stringValue(core.created_at)
+      || (numberValue((core as Record<string, unknown>).created_at_ms)
+        ? new Date(numberValue((core as Record<string, unknown>).created_at_ms)).toString()
+        : ""),
     followers: numberValue(counts?.followers),
     following: numberValue(counts?.following),
     tweets: numberValue(tweetCounts?.tweets),
+    likes: numberValue(actionCounts?.favorites_count),
     protected: booleanValue(privacy?.protected),
     blueVerified: booleanValue(result.is_blue_verified),
     suspended: false,
@@ -83,13 +108,38 @@ function emptyProfile(suspended: boolean): Profile {
     name: "",
     bio: "",
     avatar: "",
+    banner: "",
+    location: "",
+    website: "",
+    joinedAt: "",
     followers: 0,
     following: 0,
     tweets: 0,
+    likes: 0,
     protected: false,
     blueVerified: false,
     suspended,
   };
+}
+
+function expandedWebsite(entitiesUrl: unknown, fallback: string): string {
+  const urls = Array.isArray(entitiesUrl)
+    ? entitiesUrl
+    : asOptionalArray(asOptionalRecord(entitiesUrl)?.urls) ?? [];
+  const expanded = urls.length
+    ? stringValue(asOptionalRecord(urls[0])?.expanded_url)
+    : "";
+  return expanded || fallback;
+}
+
+function recordAtLegacy(value: Record<string, unknown>, path: string[]): unknown {
+  let current: unknown = value;
+  for (const key of path) {
+    const record = asOptionalRecord(current);
+    if (!record) return undefined;
+    current = record[key];
+  }
+  return current;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -102,6 +152,10 @@ function asRecord(value: unknown): Record<string, unknown> {
 function asOptionalRecord(value: unknown): Record<string, unknown> | undefined {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
   return value as Record<string, unknown>;
+}
+
+function asOptionalArray(value: unknown): unknown[] | undefined {
+  return Array.isArray(value) ? value : undefined;
 }
 
 function stringValue(value: unknown): string {

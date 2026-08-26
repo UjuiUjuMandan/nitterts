@@ -10,9 +10,14 @@ describe("renderProfilePage", () => {
         name: "<script>alert(1)</script>",
         bio: "safe & sound",
         avatar: "https://pbs.twimg.com/alice.jpg",
+        banner: "https://pbs.twimg.com/banner.jpg",
+        location: "The Internet",
+        website: "https://alice.example",
+        joinedAt: "Mon Dec 30 23:54:40 +0000 2013",
         followers: 2,
         following: 3,
         tweets: 4,
+        likes: 5,
         protected: false,
         blueVerified: false,
         suspended: false,
@@ -55,6 +60,12 @@ describe("renderProfilePage", () => {
     expect(html).toContain("| nitter</title>");
     expect(html).toContain('href="/alice/with_replies"');
     expect(html).toContain('href="/alice/media"');
+    expect(html).toContain('class="profile-banner"');
+    expect(html).toContain('class="profile-location"');
+    expect(html).toContain('class="profile-website"');
+    expect(html).toContain('class="profile-joindate"');
+    expect(html).toContain("Dec 2013");
+    expect(html).toContain(">Likes<");
 
     const replies = renderProfilePage(
       {
@@ -63,9 +74,14 @@ describe("renderProfilePage", () => {
         name: "Alice",
         bio: "",
         avatar: "",
+        banner: "",
+        location: "",
+        website: "",
+        joinedAt: "",
         followers: 0,
         following: 0,
         tweets: 0,
+        likes: 0,
         protected: false,
         blueVerified: false,
         suspended: false,
@@ -82,9 +98,14 @@ describe("renderProfilePage", () => {
         name: "alice",
         bio: "",
         avatar: "",
+        banner: "",
+        location: "",
+        website: "",
+        joinedAt: "",
         followers: 0,
         following: 0,
         tweets: 0,
+        likes: 0,
         protected: false,
         blueVerified: false,
         suspended: true,

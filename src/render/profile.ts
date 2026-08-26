@@ -40,6 +40,7 @@ export function renderProfilePage(profile: Profile, timeline: Timeline, tab: Pro
   ${renderNavbar()}
   <div class="container">
     <main class="profile-tabs">
+      ${profile.banner ? `<div class="profile-banner"><a href="${escapeAttribute(mediaProxyUrl(profile.banner))}" target="_blank" rel="noopener" aria-label="Open banner image"><img src="${escapeAttribute(mediaProxyUrl(profile.banner))}" alt=""></a></div>` : ""}
       <aside class="profile-tab sticky">${renderProfileCard(profile)}</aside>
       <section class="timeline-container">
         <ul class="tab">
@@ -79,11 +80,15 @@ function renderProfileCard(profile: Profile): string {
     </div>
     <div class="profile-card-extra">
       ${profile.bio ? `<div class="profile-bio"><p dir="auto">${formatText(profile.bio)}</p></div>` : ""}
+      ${profile.location ? `<div class="profile-location"><span>${escapeHtml(profile.location)}</span></div>` : ""}
+      ${profile.website && /^https?:\/\//i.test(profile.website) ? `<div class="profile-website"><a href="${escapeAttribute(profile.website)}" target="_blank" rel="noopener">${escapeHtml(shortLink(profile.website))}</a></div>` : profile.website ? `<div class="profile-website"><span>${escapeHtml(shortLink(profile.website))}</span></div>` : ""}
+      ${profile.joinedAt ? `<div class="profile-joindate" title="${escapeAttribute(profile.joinedAt)}"><span>${escapeHtml(formatJoinDate(profile.joinedAt))}</span></div>` : ""}
       <div class="profile-card-extra-links">
         <ul class="profile-statlist">
           ${renderStat("Tweets", profile.tweets)}
           ${renderStat("Following", profile.following)}
           ${renderStat("Followers", profile.followers)}
+          ${renderStat("Likes", profile.likes)}
         </ul>
       </div>
     </div>
@@ -151,6 +156,20 @@ function formatDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(date).replaceAll(",", "");
+}
+
+function formatJoinDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("en", { month: "short", year: "numeric" }).format(date);
+}
+
+function shortLink(value: string): string {
+  try {
+    return new URL(value).hostname.replace(/^www\./, "");
+  } catch {
+    return value;
+  }
 }
 
 function formatNumber(value: number): string {

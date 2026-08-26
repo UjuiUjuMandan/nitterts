@@ -125,6 +125,26 @@ nav {
   margin: 10px auto 0;
 }
 
+.profile-banner {
+  margin-bottom: 4px;
+  background: var(--bg-panel);
+}
+
+.profile-banner a {
+  display: block;
+  position: relative;
+  padding-top: 33.34%;
+}
+
+.profile-banner img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .profile-tab {
   display: inline-block;
   width: 32%;
@@ -207,6 +227,15 @@ nav {
 
 .profile-bio p {
   margin: 0;
+}
+
+.profile-location,
+.profile-website,
+.profile-joindate {
+  color: var(--fg-faded);
+  margin: 1px 0;
+  width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .profile-card-extra-links {
