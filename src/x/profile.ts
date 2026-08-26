@@ -11,6 +11,7 @@ export type Profile = {
   followers: number;
   following: number;
   tweets: number;
+  media: number;
   likes: number;
   protected: boolean;
   blueVerified: boolean;
@@ -45,6 +46,7 @@ export function parseProfile(value: unknown): Profile {
       followers: numberValue(legacy.followers_count),
       following: numberValue(legacy.friends_count),
       tweets: numberValue(legacy.statuses_count),
+      media: numberValue(legacy.media_count),
       likes: numberValue(legacy.favourites_count),
       protected: booleanValue(legacy.protected),
       blueVerified: booleanValue(result.is_blue_verified),
@@ -87,6 +89,7 @@ export function parseProfile(value: unknown): Profile {
     followers: numberValue(counts?.followers),
     following: numberValue(counts?.following),
     tweets: numberValue(tweetCounts?.tweets),
+    media: numberValue(tweetCounts?.media_tweets),
     likes: numberValue(actionCounts?.favorites_count),
     protected: booleanValue(privacy?.protected),
     blueVerified: booleanValue(result.is_blue_verified),
@@ -115,6 +118,7 @@ function emptyProfile(suspended: boolean): Profile {
     followers: 0,
     following: 0,
     tweets: 0,
+    media: 0,
     likes: 0,
     protected: false,
     blueVerified: false,

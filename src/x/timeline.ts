@@ -58,6 +58,26 @@ export type Timeline = {
   cursor?: string;
 };
 
+export type PhotoRailItem = {
+  url: string;
+  tweetId: string;
+};
+
+export function photoRail(timeline: Timeline, limit = 16): PhotoRailItem[] {
+  const items: PhotoRailItem[] = [];
+  const seen = new Set<string>();
+  for (const tweet of timeline.tweets) {
+    for (const medium of tweet.media) {
+      const url = medium.kind === "photo" ? medium.url : medium.preview;
+      if (!url || seen.has(url)) continue;
+      seen.add(url);
+      items.push({ url, tweetId: tweet.id });
+      if (items.length >= limit) return items;
+    }
+  }
+  return items;
+}
+
 export async function fetchProfileTimeline(
   tab: ProfileTab,
   userId: string,

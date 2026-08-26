@@ -1,6 +1,6 @@
 import { mediaProxyUrl } from "../media";
 import type { Profile } from "../x/profile";
-import type { ProfileTab, Timeline, Tweet, TweetLink } from "../x/timeline";
+import type { PhotoRailItem, ProfileTab, Timeline, Tweet, TweetLink } from "../x/timeline";
 
 const TAB_PATHS: Record<ProfileTab, string> = {
   tweets: "",
@@ -8,7 +8,12 @@ const TAB_PATHS: Record<ProfileTab, string> = {
   media: "/media",
 };
 
-export function renderProfilePage(profile: Profile, timeline: Timeline, tab: ProfileTab = "tweets"): string {
+export function renderProfilePage(
+  profile: Profile,
+  timeline: Timeline,
+  tab: ProfileTab = "tweets",
+  photos: PhotoRailItem[] = [],
+): string {
   const title = `${profile.name} (@${profile.username}) | nitter`;
   const base = `/${encodeURIComponent(profile.username)}`;
   const tweets = [timeline.pinned, ...timeline.tweets]
@@ -41,7 +46,7 @@ export function renderProfilePage(profile: Profile, timeline: Timeline, tab: Pro
   <div class="container">
     <main class="profile-tabs">
       ${profile.banner ? `<div class="profile-banner"><a href="${escapeAttribute(mediaProxyUrl(profile.banner))}" target="_blank" rel="noopener" aria-label="Open banner image"><img src="${escapeAttribute(mediaProxyUrl(profile.banner))}" alt=""></a></div>` : ""}
-      <aside class="profile-tab sticky">${renderProfileCard(profile)}</aside>
+      <aside class="profile-tab sticky">${renderProfileCard(profile)}${renderPhotoRail(profile, photos)}</aside>
       <section class="timeline-container">
         <ul class="tab">
           <li class="tab-item${tab === "tweets" ? " active" : ""}"><a href="${base}">Tweets</a></li>
@@ -95,6 +100,33 @@ function renderProfileCard(profile: Profile): string {
   </section>`;
 }
 
+export function renderPhotoRail(profile: Profile, photos: PhotoRailItem[]): string {
+  if (!photos.length) return "";
+  const base = `/${encodeURIComponent(profile.username)}`;
+  const grid = photos
+    .map((photo) => `<a href="${base}/status/${encodeURIComponent(photo.tweetId)}#m"><img loading="lazy" src="${escapeAttribute(mediaProxyUrl(thumbUrl(photo.url)))}" alt=""></a>`)
+    .join("");
+  return `<section class="photo-rail-card">
+    <div class="photo-rail-header"><a href="${base}/media">${formatNumber(profile.media || photos.length)} Photos and videos</a></div>
+    <input id="photo-rail-grid-toggle" type="checkbox">
+    <label class="photo-rail-header-mobile" for="photo-rail-grid-toggle">${formatNumber(profile.media || photos.length)} Photos and videos</label>
+    <div class="photo-rail-grid">${grid}</div>
+  </section>`;
+}
+
+function thumbUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (parsed.searchParams.has("name")) {
+      parsed.searchParams.set("name", "thumb");
+      return parsed.toString();
+    }
+  } catch {
+    return url;
+  }
+  return /:(thumb|small|medium|large)$/.test(url) ? url : `${url}:thumb`;
+}
+
 export function renderTweet(source: Tweet, main = false): string {
   const tweet = source.retweet ?? source;
   const context = source.retweet
@@ -141,7 +173,9 @@ function renderMedia(tweet: Tweet): string {
 }
 
 function renderQuote(tweet: Tweet): string {
-  return `<blockquote class="quote"><div class="tweet-name-row"><div class="fullname-and-username"><strong class="fullname">${escapeHtml(tweet.author.name)}</strong><span class="username">@${escapeHtml(tweet.author.username)}</span></div></div><div class="quote-text" dir="auto">${linkify(tweet.text, tweet.links)}</div></blockquote>`;
+  const permalink = `/${encodeURIComponent(tweet.author.username)}/status/${encodeURIComponent(tweet.id)}`;
+  const media = renderMedia(tweet);
+  return `<blockquote class="quote"><a class="quote-link" href="${permalink}" aria-label="View quoted post"></a><div class="tweet-name-row"><div class="fullname-and-username"><strong class="fullname">${escapeHtml(tweet.author.name)}</strong><span class="username">@${escapeHtml(tweet.author.username)}</span></div></div><div class="quote-text" dir="auto">${linkify(tweet.text, tweet.links)}</div>${media ? `<div class="quote-media-container">${media}</div>` : ""}</blockquote>`;
 }
 
 function renderStat(label: string, value: number): string {

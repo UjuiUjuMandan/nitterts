@@ -155,8 +155,14 @@ nav {
 }
 
 .profile-tab.sticky {
-  position: sticky;
-  top: 60px;
+  position: static;
+}
+
+@media (min-height: 900px) {
+  .profile-tab.sticky {
+    position: sticky;
+    top: 60px;
+  }
 }
 
 .profile-card {
@@ -236,6 +242,59 @@ nav {
   margin: 1px 0;
   width: 100%;
   overflow-wrap: anywhere;
+}
+
+.photo-rail-card {
+  width: 100%;
+  margin: 5px 0;
+  border-radius: 0 0 4px 4px;
+  background: var(--bg-panel);
+}
+
+.photo-rail-card input[type="checkbox"] {
+  display: none;
+}
+
+.photo-rail-header {
+  padding: 5px 12px 0;
+}
+
+.photo-rail-header-mobile {
+  display: none;
+  box-sizing: border-box;
+  padding: 5px 12px 0;
+  width: 100%;
+  color: var(--accent);
+  justify-content: space-between;
+}
+
+.photo-rail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 3px;
+  padding: 5px 12px 12px;
+  box-sizing: border-box;
+}
+
+.photo-rail-grid a {
+  position: relative;
+  border-radius: 5px;
+  background: var(--darker-grey);
+}
+
+.photo-rail-grid a::before {
+  content: "";
+  display: block;
+  padding-top: 100%;
+}
+
+.photo-rail-grid img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 4px;
+  object-fit: cover;
 }
 
 .profile-card-extra-links {
@@ -428,6 +487,7 @@ nav {
 .tweet-content {
   display: inline;
   line-height: 1.3em;
+  pointer-events: all;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -534,6 +594,16 @@ nav {
   background: var(--bg-elements);
 }
 
+.quote-link {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.quote:hover {
+  border-color: var(--grey);
+}
+
 .quote .tweet-name-row {
   padding: 8px 10px 6px;
 }
@@ -542,6 +612,22 @@ nav {
   padding: 0 10px 10px;
   overflow-wrap: break-word;
   white-space: pre-wrap;
+}
+
+.quote-media-container {
+  display: flex;
+  max-height: 300px;
+  position: relative;
+  z-index: 2;
+}
+
+.quote-media-container .attachments {
+  border-radius: 0;
+  max-height: 300px;
+}
+
+.quote-media-container .attachment img {
+  max-height: 300px;
 }
 
 .timeline-header {
@@ -688,6 +774,27 @@ nav {
     align-self: center;
   }
 
+  .photo-rail-header {
+    display: none;
+  }
+
+  .photo-rail-header-mobile {
+    display: flex;
+  }
+
+  .photo-rail-grid {
+    grid-template-columns: repeat(6, 1fr);
+    max-height: 0;
+    padding-bottom: 0;
+    overflow: hidden;
+    transition: max-height 0.4s;
+  }
+
+  #photo-rail-grid-toggle:checked ~ .photo-rail-grid {
+    max-height: 300px;
+    padding-bottom: 12px;
+  }
+
   .timeline-container {
     float: none;
     width: 100%;
@@ -700,6 +807,16 @@ nav {
 
   .main-tweet-item .tweet-content {
     font-size: 16px;
+  }
+}
+
+@media (max-width: 450px) {
+  .photo-rail-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  #photo-rail-grid-toggle:checked ~ .photo-rail-grid {
+    max-height: 450px;
   }
 }
 

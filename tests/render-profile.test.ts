@@ -17,6 +17,7 @@ describe("renderProfilePage", () => {
         followers: 2,
         following: 3,
         tweets: 4,
+        media: 6,
         likes: 5,
         protected: false,
         blueVerified: false,
@@ -75,6 +76,35 @@ describe("renderProfilePage", () => {
     expect(html).toContain('href="/alice"');
     expect(html).not.toContain('href="javascript:');
 
+    const withRail = renderProfilePage(
+      {
+        id: "1",
+        username: "alice",
+        name: "Alice",
+        bio: "",
+        avatar: "",
+        banner: "",
+        location: "",
+        website: "",
+        joinedAt: "",
+        followers: 0,
+        following: 0,
+        tweets: 0,
+        media: 2,
+        likes: 0,
+        protected: false,
+        blueVerified: false,
+        suspended: false,
+      },
+      { tweets: [] },
+      "tweets",
+      [{ url: "https://pbs.twimg.com/media/a.jpg", tweetId: "10" }],
+    );
+    expect(withRail).toContain('class="photo-rail-card"');
+    expect(withRail).toContain("2 Photos and videos");
+    expect(withRail).toContain("/alice/status/10#m");
+    expect(withRail).toContain("%2Fmedia%2Fa.jpg%3Athumb");
+
     const replies = renderProfilePage(
       {
         id: "1",
@@ -89,6 +119,7 @@ describe("renderProfilePage", () => {
         followers: 0,
         following: 0,
         tweets: 0,
+        media: 0,
         likes: 0,
         protected: false,
         blueVerified: false,
@@ -113,6 +144,7 @@ describe("renderProfilePage", () => {
         followers: 0,
         following: 0,
         tweets: 0,
+        media: 0,
         likes: 0,
         protected: false,
         blueVerified: false,

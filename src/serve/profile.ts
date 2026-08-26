@@ -2,7 +2,7 @@ import { renderErrorPage, renderProfilePage } from "../render/profile";
 import { fetchProfile, XApiError } from "../x/client";
 import { ProfileNotFoundError } from "../x/profile";
 import { withCookieSession } from "../x/sessions";
-import { fetchProfileTimeline, type ProfileTab } from "../x/timeline";
+import { fetchProfileTimeline, photoRail, type ProfileTab } from "../x/timeline";
 
 export async function serveProfilePage(
   request: Request,
@@ -16,20 +16,35 @@ export async function serveProfilePage(
 
   const cursor = new URL(request.url).searchParams.get("cursor") ?? undefined;
   try {
-    const { profile, timeline } = await withCookieSession(
+    const { profile, timeline, photos } = await withCookieSession(
       env.NITTER_SESSIONS,
       async (session) => {
         const fetchedProfile = await fetchProfile(username, session);
         const profile = fetchedProfile.suspended
           ? { ...fetchedProfile, username, name: username }
           : fetchedProfile;
-        const timeline = profile.protected || profile.suspended
-          ? { tweets: [] }
-          : await fetchProfileTimeline(tab, profile.id, session, cursor);
-        return { profile, timeline };
+        if (profile.protected || profile.suspended) {
+          return { profile, timeline: { tweets: [] }, photos: [] };
+        }
+        const timeline = await fetchProfileTimeline(tab, profile.id, session, cursor);
+        let photos: Awaited<ReturnType<typeof photoRail>> = [];
+        if (tab === "tweets" && !cursor) {
+          try {
+            photos = photoRail(await fetchProfileTimeline("media", profile.id, session));
+          } catch (error) {
+            console.warn(
+              JSON.stringify({
+                message: "photo rail fetch failed",
+                username,
+                error: error instanceof Error ? error.message : String(error),
+              }),
+            );
+          }
+        }
+        return { profile, timeline, photos };
       },
     );
-    return html(renderProfilePage(profile, timeline, tab), 200);
+    return html(renderProfilePage(profile, timeline, tab, photos), 200);
   } catch (error) {
     const notFound = error instanceof ProfileNotFoundError;
     const status = notFound ? 404 : error instanceof XApiError ? 502 : 500;
