@@ -63,14 +63,26 @@ export async function fetchProfile(
   username: string,
   session: CookieSession,
 ): Promise<Profile> {
-  const path = `/i/api/graphql/${GRAPH_USER}`;
-  const url = new URL(`https://x.com${path}`);
-  url.searchParams.set(
-    "variables",
-    JSON.stringify({ screen_name: username, withGrokTranslatedBio: false }),
+  const value = await fetchGraphql(
+    GRAPH_USER,
+    { screen_name: username, withGrokTranslatedBio: false },
+    FIELD_TOGGLES,
+    session,
   );
+  return parseProfile(value);
+}
+
+export async function fetchGraphql(
+  operation: string,
+  variables: Record<string, unknown>,
+  fieldToggles: Record<string, boolean>,
+  session: CookieSession,
+): Promise<unknown> {
+  const path = `/i/api/graphql/${operation}`;
+  const url = new URL(`https://x.com${path}`);
+  url.searchParams.set("variables", JSON.stringify(variables));
   url.searchParams.set("features", JSON.stringify(FEATURES));
-  url.searchParams.set("fieldToggles", JSON.stringify(FIELD_TOGGLES));
+  url.searchParams.set("fieldToggles", JSON.stringify(fieldToggles));
 
   const pair = await fetchTidPair();
   const transactionId = await generateTransactionId(path, pair);
@@ -112,9 +124,9 @@ export async function fetchProfile(
   try {
     value = JSON.parse(body);
   } catch {
-    throw new Error("X returned a non-JSON profile response");
+    throw new Error("X returned a non-JSON GraphQL response");
   }
-  return parseProfile(value);
+  return value;
 }
 
 export class XApiError extends Error {

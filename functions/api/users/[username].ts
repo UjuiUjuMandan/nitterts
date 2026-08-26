@@ -1,6 +1,6 @@
-import { parseSessions } from "../../../src/session";
 import { fetchProfile, XApiError } from "../../../src/x/client";
 import { ProfileNotFoundError } from "../../../src/x/profile";
+import { withCookieSession } from "../../../src/x/sessions";
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const username = context.params.username;
@@ -9,21 +9,9 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   }
 
   try {
-    const sessions = parseSessions(context.env.NITTER_SESSIONS);
-    let profile: Awaited<ReturnType<typeof fetchProfile>> | undefined;
-    let lastError: unknown;
-    for (const session of sessions) {
-      try {
-        profile = await fetchProfile(username, session);
-        break;
-      } catch (error) {
-        lastError = error;
-        if (!(error instanceof XApiError) || ![401, 403, 429].includes(error.status)) {
-          throw error;
-        }
-      }
-    }
-    if (!profile) throw lastError ?? new Error("No cookie sessions configured");
+    const profile = await withCookieSession(context.env.NITTER_SESSIONS, (session) =>
+      fetchProfile(username, session),
+    );
 
     return Response.json(profile, {
       headers: { "cache-control": "public, max-age=60" },

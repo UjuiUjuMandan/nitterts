@@ -1,0 +1,339 @@
+import type { CookieSession } from "../session";
+import { fetchGraphql } from "./client";
+
+const GRAPH_USER_TWEETS = "LE3eTyeqhBh2g-fX85O2eQ/UserWithProfileTweetsQueryV2";
+const FIELD_TOGGLES = {
+  withArticleRichContentState: true,
+  withArticlePlainText: false,
+};
+
+export type TweetAuthor = {
+  id: string;
+  username: string;
+  name: string;
+  avatar: string;
+  blueVerified: boolean;
+};
+
+export type TweetMedia = {
+  kind: "photo" | "video" | "gif";
+  url: string;
+  preview: string;
+  alt: string;
+};
+
+export type Tweet = {
+  id: string;
+  conversationId: string;
+  text: string;
+  createdAt: string;
+  author: TweetAuthor;
+  replies: number;
+  retweets: number;
+  likes: number;
+  views: number;
+  replyTo: string[];
+  media: TweetMedia[];
+  retweet?: Tweet;
+  quote?: Tweet;
+  pinned: boolean;
+};
+
+export type Timeline = {
+  tweets: Tweet[];
+  pinned?: Tweet;
+  cursor?: string;
+};
+
+export async function fetchTimeline(
+  userId: string,
+  session: CookieSession,
+  cursor?: string,
+): Promise<Timeline> {
+  const variables: Record<string, unknown> = { rest_id: userId, count: 20 };
+  if (cursor) variables.cursor = cursor;
+
+  return parseTimeline(
+    await fetchGraphql(GRAPH_USER_TWEETS, variables, FIELD_TOGGLES, session),
+  );
+}
+
+export function parseTimeline(value: unknown): Timeline {
+  const instructions = firstArray(value, [
+    ["data", "user", "result", "timeline", "timeline", "instructions"],
+    ["data", "user_result", "result", "timeline_response", "timeline", "instructions"],
+  ]);
+  const timeline: Timeline = { tweets: [] };
+  const seen = new Set<string>();
+
+  for (const instructionValue of instructions) {
+    const instruction = optionalRecord(instructionValue);
+    if (!instruction) continue;
+
+    const entries = optionalArray(instruction.entries);
+    if (entries) {
+      for (const entry of entries) {
+        const record = optionalRecord(entry);
+        if (!record) continue;
+        const entryId = stringValue(record.entryId) || stringValue(record.entry_id);
+        if (entryId.startsWith("cursor-bottom")) {
+          timeline.cursor = stringValue(recordAt(record, ["content", "value"]));
+          continue;
+        }
+        for (const tweet of extractTweets(record)) addTweet(timeline.tweets, seen, tweet);
+      }
+    }
+
+    const moduleItems = optionalArray(instruction.moduleItems);
+    if (moduleItems) {
+      for (const item of moduleItems) {
+        const record = optionalRecord(item);
+        if (!record) continue;
+        for (const tweet of extractTweetsFromItem(record)) addTweet(timeline.tweets, seen, tweet);
+      }
+    }
+
+    if (typeName(instruction) === "TimelinePinEntry") {
+      const entry = optionalRecord(instruction.entry);
+      const pinned = entry ? extractTweets(entry)[0] : undefined;
+      if (pinned) timeline.pinned = { ...pinned, pinned: true };
+    }
+  }
+
+  return timeline;
+}
+
+function extractTweets(entry: Record<string, unknown>): Tweet[] {
+  const direct = firstRecord(entry, [
+    ["content", "content", "tweet_results", "result"],
+    ["content", "itemContent", "tweet_results", "result"],
+    ["content", "item_content", "tweet_results", "result"],
+    ["content", "content", "tweetResult", "result"],
+  ]);
+  if (direct) {
+    const tweet = parseTweet(direct);
+    return tweet ? [tweet] : [];
+  }
+
+  const items = firstArray(entry, [["content", "items"]]);
+  return items.flatMap((item) => {
+    const record = optionalRecord(item);
+    return record ? extractTweetsFromItem(record) : [];
+  });
+}
+
+function extractTweetsFromItem(item: Record<string, unknown>): Tweet[] {
+  const result = firstRecord(item, [
+    ["item", "itemContent", "tweet_results", "result"],
+    ["item", "item_content", "tweet_results", "result"],
+    ["item", "content", "tweet_results", "result"],
+  ]);
+  const tweet = result ? parseTweet(result) : undefined;
+  return tweet ? [tweet] : [];
+}
+
+function parseTweet(value: Record<string, unknown>, depth = 0): Tweet | undefined {
+  if (depth > 2) return undefined;
+  if (typeName(value) === "TweetWithVisibilityResults") {
+    const inner = optionalRecord(value.tweet);
+    return inner ? parseTweet(inner, depth + 1) : undefined;
+  }
+  if (["TweetUnavailable", "TweetTombstone", "TweetPreviewDisplay"].includes(typeName(value))) {
+    return undefined;
+  }
+
+  const legacy = optionalRecord(value.legacy);
+  const details = optionalRecord(value.details);
+  const id = stringValue(value.rest_id) || stringValue(legacy?.id_str);
+  if (!id) return undefined;
+
+  const core = optionalRecord(value.core);
+  const authorResult = core
+    ? firstRecord(core, [
+        ["user_results", "result"],
+        ["user_result", "result"],
+      ]) ?? core
+    : undefined;
+  const author = parseAuthor(authorResult);
+  const counts = optionalRecord(value.counts);
+  const noteText = stringValue(
+    recordAt(value, ["note_tweet", "note_tweet_results", "result", "text"]),
+  );
+  const createdAtMs = stringValue(details?.created_at_ms);
+  const createdAt = createdAtMs
+    ? new Date(Number(createdAtMs)).toISOString()
+    : stringValue(legacy?.created_at);
+
+  const tweet: Tweet = {
+    id,
+    conversationId: stringValue(legacy?.conversation_id_str) || id,
+    text: noteText || stringValue(details?.full_text) || stringValue(legacy?.full_text),
+    createdAt,
+    author,
+    replies: numberValue(counts?.reply_count, legacy?.reply_count),
+    retweets: numberValue(counts?.retweet_count, legacy?.retweet_count),
+    likes: numberValue(counts?.favorite_count, legacy?.favorite_count),
+    views: Number(stringValue(recordAt(value, ["views", "count"]))) || 0,
+    replyTo: collectReplyUsers(value, legacy),
+    media: parseMedia(value, legacy),
+    pinned: false,
+  };
+
+  const retweetResult = firstRecord(value, [
+    ["legacy", "retweeted_status_result", "result"],
+    ["legacy", "repostedStatusResults", "result"],
+    ["repostedStatusResults", "result"],
+  ]);
+  if (retweetResult) tweet.retweet = parseTweet(retweetResult, depth + 1);
+
+  const quoteResult = firstRecord(value, [
+    ["quoted_status_result", "result"],
+    ["quotedPostResults", "result"],
+  ]);
+  if (quoteResult) tweet.quote = parseTweet(quoteResult, depth + 1);
+
+  return tweet;
+}
+
+function parseAuthor(value: Record<string, unknown> | undefined): TweetAuthor {
+  const legacy = optionalRecord(value?.legacy);
+  const core = optionalRecord(value?.core);
+  const avatar = optionalRecord(value?.avatar);
+  return {
+    id: stringValue(value?.rest_id) || stringValue(legacy?.id_str),
+    username: stringValue(core?.screen_name) || stringValue(legacy?.screen_name),
+    name: stringValue(core?.name) || stringValue(legacy?.name),
+    avatar: (stringValue(avatar?.image_url) || stringValue(legacy?.profile_image_url_https)).replace(
+      "_normal",
+      "",
+    ),
+    blueVerified: value?.is_blue_verified === true,
+  };
+}
+
+function collectReplyUsers(
+  value: Record<string, unknown>,
+  legacy: Record<string, unknown> | undefined,
+): string[] {
+  const modern = stringValue(
+    recordAt(value, ["reply_to_user_results", "result", "core", "screen_name"]),
+  );
+  const legacyName = stringValue(legacy?.in_reply_to_screen_name);
+  return [modern || legacyName].filter(Boolean);
+}
+
+function parseMedia(
+  value: Record<string, unknown>,
+  legacy: Record<string, unknown> | undefined,
+): TweetMedia[] {
+  const modern = optionalArray(value.media_entities);
+  if (modern?.length) {
+    return modern.flatMap((item) => parseModernMedia(optionalRecord(item)));
+  }
+
+  const legacyMedia = optionalArray(recordAt(legacy, ["extended_entities", "media"]));
+  return legacyMedia?.flatMap((item) => parseLegacyMedia(optionalRecord(item))) ?? [];
+}
+
+function parseModernMedia(entity: Record<string, unknown> | undefined): TweetMedia[] {
+  const result = optionalRecord(recordAt(entity, ["media_results", "result"]));
+  const info = optionalRecord(result?.media_info);
+  if (!info) return [];
+  const kind = typeName(info);
+  if (kind === "ApiImage") {
+    return [{ kind: "photo", url: stringValue(info.original_img_url), preview: "", alt: stringValue(info.alt_text) }];
+  }
+  const variants = optionalArray(info.variants);
+  const url = bestVideoUrl(variants);
+  if (kind === "ApiVideo" || kind === "ApiGif") {
+    return [{
+      kind: kind === "ApiGif" ? "gif" : "video",
+      url,
+      preview: stringValue(recordAt(info, ["preview_image", "original_img_url"])),
+      alt: stringValue(info.alt_text),
+    }];
+  }
+  return [];
+}
+
+function parseLegacyMedia(entity: Record<string, unknown> | undefined): TweetMedia[] {
+  if (!entity) return [];
+  const kind = typeName(entity);
+  const preview = stringValue(entity.media_url_https);
+  if (kind === "photo") {
+    return [{ kind: "photo", url: preview, preview: "", alt: stringValue(entity.ext_alt_text) }];
+  }
+  if (kind === "video" || kind === "animated_gif") {
+    return [{
+      kind: kind === "animated_gif" ? "gif" : "video",
+      url: bestVideoUrl(optionalArray(recordAt(entity, ["video_info", "variants"]))),
+      preview,
+      alt: stringValue(entity.ext_alt_text),
+    }];
+  }
+  return [];
+}
+
+function bestVideoUrl(variants: unknown[] | undefined): string {
+  return (variants ?? [])
+    .map(optionalRecord)
+    .filter((variant): variant is Record<string, unknown> => Boolean(variant))
+    .filter((variant) => stringValue(variant.content_type || variant.type).includes("mp4"))
+    .sort((a, b) => numberValue(b.bit_rate, b.bitrate) - numberValue(a.bit_rate, a.bitrate))
+    .map((variant) => stringValue(variant.url))
+    .find(Boolean) ?? "";
+}
+
+function addTweet(tweets: Tweet[], seen: Set<string>, tweet: Tweet): void {
+  if (seen.has(tweet.id)) return;
+  seen.add(tweet.id);
+  tweets.push(tweet);
+}
+
+function firstRecord(value: unknown, paths: string[][]): Record<string, unknown> | undefined {
+  for (const path of paths) {
+    const result = optionalRecord(recordAt(value, path));
+    if (result) return result;
+  }
+  return undefined;
+}
+
+function firstArray(value: unknown, paths: string[][]): unknown[] {
+  for (const path of paths) {
+    const result = optionalArray(recordAt(value, path));
+    if (result) return result;
+  }
+  return [];
+}
+
+function recordAt(value: unknown, path: string[]): unknown {
+  let current = value;
+  for (const key of path) {
+    const record = optionalRecord(current);
+    if (!record) return undefined;
+    current = record[key];
+  }
+  return current;
+}
+
+function optionalRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function optionalArray(value: unknown): unknown[] | undefined {
+  return Array.isArray(value) ? value : undefined;
+}
+
+function typeName(value: Record<string, unknown>): string {
+  return stringValue(value.__typename) || stringValue(value.type);
+}
+
+function stringValue(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function numberValue(...values: unknown[]): number {
+  return values.find((value) => typeof value === "number") as number | undefined ?? 0;
+}
