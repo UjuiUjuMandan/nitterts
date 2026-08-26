@@ -41,9 +41,10 @@ export function renderProfilePage(
   <link rel="icon" href="/favicon.ico">
   <link rel="stylesheet" href="/css/fontello.css">
   <link rel="stylesheet" href="/style.css">
+  <link rel="alternate" type="application/rss+xml" href="/${encodeURIComponent(profile.username)}/rss" title="RSS feed">
 </head>
 <body>
-  ${renderNavbar()}
+  ${renderNavbar(`/` + encodeURIComponent(profile.username))}
   <div class="container">
     <main class="profile-tabs">
       ${profile.banner ? `<div class="profile-banner"><a href="${escapeAttribute(mediaProxyUrl(profile.banner))}" target="_blank" rel="noopener" aria-label="Open banner image"><img src="${escapeAttribute(mediaProxyUrl(profile.banner))}" alt=""></a></div>` : ""}
@@ -67,8 +68,9 @@ export function renderErrorPage(message: string, status: number): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${status} | nitter</title><link rel="stylesheet" href="/css/fontello.css"><link rel="stylesheet" href="/style.css"></head><body>${renderNavbar()}<div class="container"><main class="panel-container"><section class="error-panel"><h1>${status}</h1><p>${escapeHtml(message)}</p></section></main></div></body></html>`;
 }
 
-export function renderNavbar(): string {
-  return `<nav><div class="inner-nav"><div class="nav-item"><a class="site-name" href="/">nitter</a></div><a href="/"><img class="site-logo" src="/logo.png" alt="Logo"></a><div class="nav-item right"></div></div></nav>`;
+export function renderNavbar(rss = ""): string {
+  const rssLink = rss ? `<a class="icon-rss" title="RSS Feed" href="${escapeAttribute(rss)}/rss"></a>` : "";
+  return `<nav><div class="inner-nav"><div class="nav-item"><a class="site-name" href="/">nitter</a></div><a href="/"><img class="site-logo" src="/logo.png" alt="Logo"></a><div class="nav-item right">${rssLink}</div></div></nav>`;
 }
 
 function renderProfileCard(profile: Profile): string {

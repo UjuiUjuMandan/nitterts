@@ -92,6 +92,17 @@ nav {
   justify-content: flex-end;
 }
 
+.nav-item.right a {
+  color: var(--fg-nav);
+  font-size: 16px;
+  margin-left: 12px;
+}
+
+.nav-item.right a:hover {
+  color: var(--accent-light);
+  text-decoration: none;
+}
+
 .site-name {
   color: var(--fg-nav);
   font-size: 15px;
