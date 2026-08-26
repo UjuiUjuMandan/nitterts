@@ -374,6 +374,10 @@ nav {
   color: var(--fg-dark);
 }
 
+.tweet-date a {
+  color: var(--fg-dark);
+}
+
 .replying-to {
   margin: -2px 0 4px;
   color: var(--fg-faded);
@@ -548,6 +552,63 @@ nav {
   text-align: center;
 }
 
+.conversation {
+  width: 100%;
+  max-width: 600px;
+  margin: 10px auto 0;
+}
+
+.main-thread {
+  margin-bottom: 20px;
+}
+
+.before-tweet > :not(:first-child),
+.after-tweet > :not(:first-child),
+.reply > :not(:first-child) {
+  border-top: 1px solid var(--border-grey);
+}
+
+.reply {
+  margin-bottom: 10px;
+}
+
+.reply-sort {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  background: var(--bg-panel);
+  font-size: 14px;
+}
+
+.reply-sort-label {
+  color: var(--fg-faded);
+}
+
+.main-tweet-item .tweet-content {
+  font-size: 18px;
+}
+
+.thread-line .timeline-item::before {
+  content: "";
+  position: relative;
+  left: 26px;
+  top: 56px;
+  z-index: 1;
+  width: 3px;
+  min-width: 3px;
+  margin: 0 0 37px -3px;
+  border-radius: 2px;
+  background: #8a3731;
+  pointer-events: none;
+}
+
+.after-tweet > .timeline-item:last-child::before,
+.reply > .timeline-item:last-child::before {
+  display: none;
+}
+
 @media (max-width: 700px) {
   .profile-tabs {
     width: 100vw;
@@ -589,6 +650,14 @@ nav {
     float: none;
     width: 100%;
     max-width: none;
+  }
+
+  .conversation {
+    margin-top: 4px;
+  }
+
+  .main-tweet-item .tweet-content {
+    font-size: 16px;
   }
 }
 

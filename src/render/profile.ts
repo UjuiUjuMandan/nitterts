@@ -7,7 +7,7 @@ export function renderProfilePage(profile: Profile, timeline: Timeline): string 
   const tweets = [timeline.pinned, ...timeline.tweets]
     .filter((tweet): tweet is Tweet => Boolean(tweet))
     .filter((tweet, index, all) => all.findIndex((item) => item.id === tweet.id) === index)
-    .map(renderTweet)
+    .map((tweet) => renderTweet(tweet))
     .join("");
   const more = timeline.cursor
     ? `<div class="show-more"><a href="/${encodeURIComponent(profile.username)}?cursor=${encodeURIComponent(timeline.cursor)}">Load more</a></div>`
@@ -53,7 +53,7 @@ export function renderErrorPage(message: string, status: number): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${status} | Nitter</title><link rel="stylesheet" href="/style.css"></head><body>${renderNavbar()}<div class="container"><main class="panel-container"><section class="error-panel"><h1>${status}</h1><p>${escapeHtml(message)}</p></section></main></div></body></html>`;
 }
 
-function renderNavbar(): string {
+export function renderNavbar(): string {
   return `<nav><div class="inner-nav"><div class="nav-item"><a class="site-name" href="/">nitter</a></div><a href="/"><img class="site-logo" src="/logo.png" alt="Logo"></a><div class="nav-item right"></div></div></nav>`;
 }
 
@@ -83,7 +83,7 @@ function renderProfileCard(profile: Profile): string {
   </section>`;
 }
 
-function renderTweet(source: Tweet): string {
+export function renderTweet(source: Tweet, main = false): string {
   const tweet = source.retweet ?? source;
   const context = source.retweet
     ? `<div class="retweet-header"><span>${escapeHtml(source.author.name)} retweeted</span></div>`
@@ -93,14 +93,15 @@ function renderTweet(source: Tweet): string {
   const media = renderMedia(tweet);
   const quote = tweet.quote ? renderQuote(tweet.quote) : "";
 
-  return `<article class="timeline-item tweet">
+  const permalink = `/${encodeURIComponent(tweet.author.username)}/status/${encodeURIComponent(tweet.id)}`;
+  return `<article class="timeline-item tweet${main ? " main-tweet-item" : ""}">
     <div class="tweet-body">
       ${context}
       <div class="tweet-header">
         ${tweet.author.avatar ? `<a class="tweet-avatar" href="/${encodeURIComponent(tweet.author.username)}" aria-label="View @${escapeAttribute(tweet.author.username)} profile"><img class="avatar round" src="${escapeAttribute(mediaProxyUrl(tweet.author.avatar))}" alt=""></a>` : ""}
         <div class="tweet-name-row">
           <div class="fullname-and-username"><a class="fullname" href="/${encodeURIComponent(tweet.author.username)}">${escapeHtml(tweet.author.name)}</a>${tweet.author.blueVerified ? '<span class="verified" title="Verified">&#10003;</span>' : ""}<a class="username" href="/${encodeURIComponent(tweet.author.username)}">@${escapeHtml(tweet.author.username)}</a></div>
-          <span class="tweet-date">${escapeHtml(formatDate(tweet.createdAt))}</span>
+          <span class="tweet-date"><a href="${permalink}">${escapeHtml(formatDate(tweet.createdAt))}</a></span>
         </div>
       </div>
       ${tweet.replyTo.length ? `<div class="replying-to">Replying to ${tweet.replyTo.map((name) => `@${escapeHtml(name)}`).join(" ")}</div>` : ""}
@@ -148,11 +149,11 @@ function formatNumber(value: number): string {
   return new Intl.NumberFormat("en").format(value);
 }
 
-function escapeHtml(value: string): string {
+export function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => HTML_ESCAPES[character] ?? character);
 }
 
-function escapeAttribute(value: string): string {
+export function escapeAttribute(value: string): string {
   return escapeHtml(value);
 }
 

@@ -132,7 +132,7 @@ function extractTweetsFromItem(item: Record<string, unknown>): Tweet[] {
   return tweet ? [tweet] : [];
 }
 
-function parseTweet(value: Record<string, unknown>, depth = 0): Tweet | undefined {
+export function parseTweet(value: Record<string, unknown>, depth = 0): Tweet | undefined {
   if (depth > 2) return undefined;
   if (typeName(value) === "TweetWithVisibilityResults") {
     const inner = optionalRecord(value.tweet);
