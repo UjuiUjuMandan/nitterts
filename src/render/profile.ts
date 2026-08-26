@@ -80,11 +80,10 @@ function renderProfileCard(profile: Profile): string {
       ${avatar}
       <div class="profile-card-tabs-name">
         <a class="profile-card-fullname" href="/${encodeURIComponent(profile.username)}">${escapeHtml(profile.name)}</a>${verifiedBadge(profile.verifiedType)}<a class="profile-card-username" href="/${encodeURIComponent(profile.username)}">@${escapeHtml(profile.username)}</a>
-        <a class="profile-card-username" href="/${encodeURIComponent(profile.username)}">@${escapeHtml(profile.username)}</a>
       </div>
     </div>
     <div class="profile-card-extra">
-      ${profile.bio ? `<div class="profile-bio"><p dir="auto">${formatText(profile.bio)}</p></div>` : ""}
+      ${profile.bio ? `<div class="profile-bio"><p dir="auto">${linkify(profile.bio, profile.bioLinks)}</p></div>` : ""}
       ${profile.location ? `<div class="profile-location"><span>${escapeHtml(profile.location)}</span></div>` : ""}
       ${profile.website && /^https?:\/\//i.test(profile.website) ? `<div class="profile-website"><a href="${escapeAttribute(profile.website)}" target="_blank" rel="noopener">${escapeHtml(shortLink(profile.website))}</a></div>` : profile.website ? `<div class="profile-website"><span>${escapeHtml(shortLink(profile.website))}</span></div>` : ""}
       ${profile.joinedAt ? `<div class="profile-joindate" title="${escapeAttribute(profile.joinedAt)}"><span>${escapeHtml(formatJoinDate(profile.joinedAt))}</span></div>` : ""}
@@ -196,7 +195,8 @@ function renderStat(label: string, value: number): string {
 function verifiedBadge(type: VerifiedType): string {
   if (type === "none") return "";
   const title = type === "business" ? "Verified business account" : type === "government" ? "Verified government account" : "Verified blue account";
-  return `<span class="verified verified-${type}" title="${title}">&#10003;</span>`;
+  const color = type === "business" ? "#fac82b" : type === "government" ? "#c1b6a4" : "var(--verified-blue)";
+  return `<span class="verified verified-${type}" title="${title}" aria-label="${title}"><svg viewBox="0 0 16 16" width="14" height="14"><circle cx="8" cy="8" r="7" fill="${color}"/><path d="M4.6 8.2l2.2 2.2 4.6-4.8" fill="none" stroke="#161616" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>`;
 }
 
 function formatText(value: string): string {

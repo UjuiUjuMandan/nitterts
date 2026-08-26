@@ -9,6 +9,7 @@ describe("renderProfilePage", () => {
         username: "alice",
         name: "<script>alert(1)</script>",
         bio: "safe & sound",
+        bioLinks: [{ kind: "url", start: 11, end: 16, url: "https://sound.example", display: "sound.example" }],
         avatar: "https://pbs.twimg.com/alice.jpg",
         banner: "https://pbs.twimg.com/banner.jpg",
         location: "The Internet",
@@ -82,6 +83,7 @@ describe("renderProfilePage", () => {
         username: "alice",
         name: "Alice",
         bio: "",
+        bioLinks: [],
         avatar: "",
         banner: "",
         location: "",
@@ -105,12 +107,40 @@ describe("renderProfilePage", () => {
     expect(withRail).toContain("/alice/status/10#m");
     expect(withRail).toContain("%2Fmedia%2Fa.jpg%3Athumb");
 
+    const verified = renderProfilePage(
+      {
+        id: "1",
+        username: "alice",
+        name: "Alice",
+        bio: "",
+        bioLinks: [],
+        avatar: "",
+        banner: "",
+        location: "",
+        website: "",
+        joinedAt: "",
+        followers: 0,
+        following: 0,
+        tweets: 0,
+        media: 0,
+        likes: 0,
+        protected: false,
+        blueVerified: true,
+        verifiedType: "business",
+        suspended: false,
+      },
+      { tweets: [] },
+    );
+    expect(verified).toContain("verified-business");
+    expect(verified).toContain("<svg");
+
     const replies = renderProfilePage(
       {
         id: "1",
         username: "alice",
         name: "Alice",
         bio: "",
+        bioLinks: [],
         avatar: "",
         banner: "",
         location: "",
@@ -136,6 +166,7 @@ describe("renderProfilePage", () => {
         username: "alice",
         name: "alice",
         bio: "",
+        bioLinks: [],
         avatar: "",
         banner: "",
         location: "",

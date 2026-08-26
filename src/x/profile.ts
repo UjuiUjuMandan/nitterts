@@ -1,10 +1,11 @@
-import type { VerifiedType } from "./timeline";
+import type { TweetLink, VerifiedType } from "./timeline";
 
 export type Profile = {
   id: string;
   username: string;
   name: string;
   bio: string;
+  bioLinks: TweetLink[];
   avatar: string;
   banner: string;
   location: string;
@@ -42,6 +43,7 @@ export function parseProfile(value: unknown): Profile {
       username: stringValue(legacy.screen_name),
       name: stringValue(legacy.name),
       bio: stringValue(legacy.description),
+      bioLinks: bioLinksFromUrls(asOptionalArray(recordAtLegacy(legacy, ["entities", "description", "urls"]))),
       avatar: stringValue(legacy.profile_image_url_https).replace("_normal", ""),
       banner: stringValue(legacy.profile_banner_url),
       location: stringValue(legacy.location),
@@ -80,6 +82,9 @@ export function parseProfile(value: unknown): Profile {
     username,
     name: stringValue(core.name),
     bio: stringValue(bio?.description),
+    bioLinks: bioLinksFromUrls(
+      asOptionalArray(recordAtLegacy(bio ?? {}, ["entities", "description", "urls"])),
+    ),
     avatar: stringValue(avatar.image_url).replace("_normal", ""),
     banner: stringValue(banner.image_url),
     location: stringValue(location.location),
@@ -124,6 +129,7 @@ function emptyProfile(suspended: boolean): Profile {
     username: "",
     name: "",
     bio: "",
+    bioLinks: [],
     avatar: "",
     banner: "",
     location: "",
@@ -139,6 +145,21 @@ function emptyProfile(suspended: boolean): Profile {
     verifiedType: "none",
     suspended,
   };
+}
+
+function bioLinksFromUrls(urls: unknown[] | undefined): TweetLink[] {
+  const links: TweetLink[] = [];
+  for (const item of urls ?? []) {
+    const record = asOptionalRecord(item);
+    if (!record) continue;
+    const range = asOptionalArray(record.indices);
+    const start = typeof range?.[0] === "number" ? range[0] : -1;
+    const end = typeof range?.[1] === "number" ? range[1] : -1;
+    const url = stringValue(record.expanded_url) || stringValue(record.url);
+    if (end <= start || !url) continue;
+    links.push({ kind: "url", start, end, url, display: stringValue(record.display_url) });
+  }
+  return links.sort((a, b) => a.start - b.start);
 }
 
 function expandedWebsite(entitiesUrl: unknown, fallback: string): string {

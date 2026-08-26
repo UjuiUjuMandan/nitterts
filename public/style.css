@@ -215,9 +215,18 @@ nav {
 }
 
 .verified {
+  display: inline-flex;
+  align-items: center;
   margin-left: 4px;
+  line-height: 1;
+}
+
+.verified svg {
+  display: block;
+}
+
+.verified-blue {
   color: var(--verified-blue);
-  font-weight: 700;
 }
 
 .verified-business {
