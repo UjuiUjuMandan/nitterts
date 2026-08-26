@@ -159,9 +159,9 @@ export function parseTweet(value: Record<string, unknown>, depth = 0): Tweet | u
   const noteText = stringValue(
     recordAt(value, ["note_tweet", "note_tweet_results", "result", "text"]),
   );
-  const createdAtMs = stringValue(details?.created_at_ms);
+  const createdAtMs = numberValue(details?.created_at_ms, Number(stringValue(details?.created_at_ms)) || undefined);
   const createdAt = createdAtMs
-    ? new Date(Number(createdAtMs)).toISOString()
+    ? new Date(createdAtMs).toISOString()
     : stringValue(legacy?.created_at);
 
   const tweet: Tweet = {

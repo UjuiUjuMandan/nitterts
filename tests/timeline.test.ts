@@ -2,6 +2,52 @@ import { describe, expect, it } from "vitest";
 import { parseTimeline } from "../src/x/timeline";
 
 describe("parseTimeline", () => {
+  it("parses numeric created_at_ms from modern tweet details", () => {
+    const modern = {
+      __typename: "Tweet",
+      rest_id: "200",
+      legacy: { __typename: "LegacyTweet", lang: "en" },
+      details: { created_at_ms: 1748606400000, full_text: "modern" },
+      core: {
+        user_results: {
+          result: {
+            rest_id: "1",
+            core: { screen_name: "alice", name: "Alice" },
+            avatar: { image_url: "https://pbs.twimg.com/alice_normal.jpg" },
+          },
+        },
+      },
+    };
+    const timeline = parseTimeline({
+      data: {
+        user: {
+          result: {
+            timeline: {
+              timeline: {
+                instructions: [
+                  {
+                    type: "TimelineAddEntries",
+                    entries: [
+                      {
+                        entryId: "tweet-200",
+                        content: { itemContent: { tweet_results: { result: modern } } },
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+    });
+    expect(timeline.tweets[0]).toMatchObject({
+      id: "200",
+      text: "modern",
+      createdAt: new Date(1748606400000).toISOString(),
+    });
+  });
+
   it("parses tweet entries, pins, media, and the bottom cursor", () => {
     const tweet = {
       __typename: "Tweet",
