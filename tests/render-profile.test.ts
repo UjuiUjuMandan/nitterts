@@ -53,6 +53,27 @@ describe("renderProfilePage", () => {
     expect(html).toContain('class="tweet-body"');
     expect(html).toContain('class="tweet-link" href="/alice/status/10"');
     expect(html).toContain("| nitter</title>");
+    expect(html).toContain('href="/alice/with_replies"');
+    expect(html).toContain('href="/alice/media"');
+
+    const replies = renderProfilePage(
+      {
+        id: "1",
+        username: "alice",
+        name: "Alice",
+        bio: "",
+        avatar: "",
+        followers: 0,
+        following: 0,
+        tweets: 0,
+        protected: false,
+        blueVerified: false,
+        suspended: false,
+      },
+      { tweets: [] },
+      "replies",
+    );
+    expect(replies).toContain('class="tab-item wide active"');
 
     const suspended = renderProfilePage(
       {

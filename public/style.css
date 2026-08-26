@@ -287,10 +287,6 @@ nav {
   text-decoration: none;
 }
 
-.tab-item span {
-  color: var(--grey);
-}
-
 .timeline > :not(:first-child) {
   border-top: 1px solid var(--border-grey);
 }

@@ -1,16 +1,23 @@
 import { mediaProxyUrl } from "../media";
 import type { Profile } from "../x/profile";
-import type { Timeline, Tweet } from "../x/timeline";
+import type { ProfileTab, Timeline, Tweet } from "../x/timeline";
 
-export function renderProfilePage(profile: Profile, timeline: Timeline): string {
+const TAB_PATHS: Record<ProfileTab, string> = {
+  tweets: "",
+  replies: "/with_replies",
+  media: "/media",
+};
+
+export function renderProfilePage(profile: Profile, timeline: Timeline, tab: ProfileTab = "tweets"): string {
   const title = `${profile.name} (@${profile.username}) | nitter`;
+  const base = `/${encodeURIComponent(profile.username)}`;
   const tweets = [timeline.pinned, ...timeline.tweets]
     .filter((tweet): tweet is Tweet => Boolean(tweet))
     .filter((tweet, index, all) => all.findIndex((item) => item.id === tweet.id) === index)
     .map((tweet) => renderTweet(tweet))
     .join("");
   const more = timeline.cursor
-    ? `<div class="show-more"><a href="/${encodeURIComponent(profile.username)}?cursor=${encodeURIComponent(timeline.cursor)}">Load more</a></div>`
+    ? `<div class="show-more"><a href="${base}${TAB_PATHS[tab]}?cursor=${encodeURIComponent(timeline.cursor)}">Load more</a></div>`
     : "";
   const timelineBody = profile.suspended
     ? '<div class="timeline-header timeline-message"><h2>This account is suspended.</h2></div>'
@@ -36,9 +43,9 @@ export function renderProfilePage(profile: Profile, timeline: Timeline): string 
       <aside class="profile-tab sticky">${renderProfileCard(profile)}</aside>
       <section class="timeline-container">
         <ul class="tab">
-          <li class="tab-item active"><a href="/${encodeURIComponent(profile.username)}">Tweets</a></li>
-          <li class="tab-item wide"><span>Tweets &amp; Replies</span></li>
-          <li class="tab-item"><span>Media</span></li>
+          <li class="tab-item${tab === "tweets" ? " active" : ""}"><a href="${base}">Tweets</a></li>
+          <li class="tab-item wide${tab === "replies" ? " active" : ""}"><a href="${base}/with_replies">Tweets &amp; Replies</a></li>
+          <li class="tab-item${tab === "media" ? " active" : ""}"><a href="${base}/media">Media</a></li>
         </ul>
         <div class="timeline">${timelineBody}</div>
         ${profile.protected || profile.suspended ? "" : more}

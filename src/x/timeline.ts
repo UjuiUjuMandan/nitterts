@@ -2,10 +2,14 @@ import type { CookieSession } from "../session";
 import { fetchGraphql } from "./client";
 
 const GRAPH_USER_TWEETS = "LE3eTyeqhBh2g-fX85O2eQ/UserWithProfileTweetsQueryV2";
+const GRAPH_USER_REPLIES = "qUpkZU6eN8MbtQb7rC_pYg/UserTweetsAndReplies";
+const GRAPH_USER_MEDIA = "WK111rbR0vM0ZX4lyZCYjw/MediaTimelineV2";
 const FIELD_TOGGLES = {
   withArticleRichContentState: true,
   withArticlePlainText: false,
 };
+
+export type ProfileTab = "tweets" | "replies" | "media";
 
 export type TweetAuthor = {
   id: string;
@@ -45,16 +49,28 @@ export type Timeline = {
   cursor?: string;
 };
 
-export async function fetchTimeline(
+export async function fetchProfileTimeline(
+  tab: ProfileTab,
   userId: string,
   session: CookieSession,
   cursor?: string,
 ): Promise<Timeline> {
-  const variables: Record<string, unknown> = { rest_id: userId, count: 20 };
-  if (cursor) variables.cursor = cursor;
+  const operation =
+    tab === "replies" ? GRAPH_USER_REPLIES : tab === "media" ? GRAPH_USER_MEDIA : GRAPH_USER_TWEETS;
+  const variables: Record<string, unknown> =
+    tab === "replies"
+      ? {
+          userId,
+          count: 20,
+          includePromotedContent: false,
+          withCommunity: true,
+          withVoice: true,
+          ...(cursor ? { cursor } : {}),
+        }
+      : { rest_id: userId, count: tab === "media" ? 100 : 20, ...(cursor ? { cursor } : {}) };
 
   return parseTimeline(
-    await fetchGraphql(GRAPH_USER_TWEETS, variables, FIELD_TOGGLES, session),
+    await fetchGraphql(operation, variables, FIELD_TOGGLES, session),
   );
 }
 
@@ -127,6 +143,7 @@ function extractTweetsFromItem(item: Record<string, unknown>): Tweet[] {
     ["item", "itemContent", "tweet_results", "result"],
     ["item", "item_content", "tweet_results", "result"],
     ["item", "content", "tweet_results", "result"],
+    ["item", "content", "tweetResult", "result"],
   ]);
   const tweet = result ? parseTweet(result) : undefined;
   return tweet ? [tweet] : [];
