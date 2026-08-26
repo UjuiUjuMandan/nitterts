@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { renderTweet } from "../src/render/profile";
 import { parseTimeline } from "../src/x/timeline";
 
 describe("parseTimeline", () => {
@@ -95,6 +96,57 @@ describe("parseTimeline", () => {
       },
     });
     expect(timeline.tweets[0].text).toBe("photo time");
+  });
+
+  it("strips media t.co placeholders with astral emoji offsets", () => {
+    const media = {
+      __typename: "Tweet",
+      rest_id: "401",
+      legacy: { __typename: "LegacyTweet", lang: "en" },
+      details: { created_at_ms: 1748606400000, full_text: "Martian 👽 🚀 https://t.co/BM2xp00JR2" },
+      media_entities: [{ indices: [12, 35] }],
+      core: {
+        user_results: {
+          result: {
+            rest_id: "1",
+            core: { screen_name: "alice", name: "Alice" },
+            avatar: { image_url: "https://pbs.twimg.com/alice_normal.jpg" },
+          },
+        },
+      },
+    };
+    const wrap = (result) => ({
+      data: {
+        user: {
+          result: {
+            timeline: {
+              timeline: {
+                instructions: [
+                  {
+                    type: "TimelineAddEntries",
+                    entries: [{ entryId: "tweet-401", content: { itemContent: { tweet_results: { result } } } }],
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+    });
+    expect(parseTimeline(wrap(media)).tweets[0].text).toBe("Martian 👽 🚀");
+
+    const linkTweet = {
+      ...media,
+      rest_id: "402",
+      media_entities: [],
+      url_entities: [
+        { expanded_url: "https://example.com/x", display_url: "example.com/x", url: "https://t.co/BM2xp00JR2", indices: [12, 35] },
+      ],
+    };
+    const parsed = parseTimeline(wrap(linkTweet)).tweets[0];
+    expect(parsed.text).toBe("Martian 👽 🚀 https://t.co/BM2xp00JR2");
+    expect(renderTweet(parsed)).toContain('href="https://example.com/x"');
+    expect(renderTweet(parsed)).not.toContain("JR2<");
   });
 
   it("parses note tweet entity_set links", () => {

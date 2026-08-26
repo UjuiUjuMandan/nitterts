@@ -393,19 +393,20 @@ function parseLinks(
 
 function stripRanges(text: string, ranges: { start: number; end: number }[]): string {
   if (!ranges.length || !text) return text;
+  const units = [...text];
   const ordered = [...ranges]
-    .filter((range) => range.end <= text.length && range.start >= 0)
+    .filter((range) => range.end <= units.length && range.start >= 0)
     .sort((a, b) => a.start - b.start || b.end - a.end);
   let result = "";
   let cursor = 0;
   for (const range of ordered) {
     if (range.start < cursor) continue;
-    result += text.slice(cursor, range.start);
+    result += units.slice(cursor, range.start).join("");
     cursor = range.end;
-    const after = text[cursor];
+    const after = units[cursor];
     if (after === " " || after === "\n") cursor += 1;
   }
-  return (result + text.slice(cursor)).trimEnd();
+  return (result + units.slice(cursor).join("")).trimEnd();
 }
 
 function addTweet(tweets: Tweet[], seen: Set<string>, tweet: Tweet): void {

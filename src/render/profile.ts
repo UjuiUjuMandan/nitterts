@@ -154,8 +154,9 @@ function formatText(value: string): string {
 
 function linkify(text: string, links: TweetLink[]): string {
   if (!links.length) return formatText(text);
+  const units = [...text];
   const ordered = [...links]
-    .filter((link) => link.end > link.start && link.end <= text.length)
+    .filter((link) => link.end > link.start && link.end <= units.length)
     .sort((a, b) => a.start - b.start || b.end - a.end);
 
   let result = "";
@@ -164,12 +165,12 @@ function linkify(text: string, links: TweetLink[]): string {
     if (link.start < cursor) continue;
     const href = safeHref(link);
     if (!href) continue;
-    const display = link.display || text.slice(link.start, link.end);
-    result += formatText(text.slice(cursor, link.start));
+    const display = link.display || units.slice(link.start, link.end).join("");
+    result += formatText(units.slice(cursor, link.start).join(""));
     result += `<a href="${escapeAttribute(href)}" title="${escapeAttribute(link.kind === "url" ? link.url : "")}">${formatText(display)}</a>`;
     cursor = link.end;
   }
-  return result + formatText(text.slice(cursor));
+  return result + formatText(units.slice(cursor).join(""));
 }
 
 function safeHref(link: TweetLink): string {
