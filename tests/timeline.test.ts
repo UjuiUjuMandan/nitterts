@@ -23,8 +23,7 @@ describe("parseTimeline", () => {
       mention_entities: [
         { screen_name: "bob", indices: [0, 4] },
       ],
-    };
-    const timeline = parseTimeline({
+    };    const timeline = parseTimeline({
       data: {
         user: {
           result: {
@@ -56,6 +55,46 @@ describe("parseTimeline", () => {
       { kind: "mention", start: 0, end: 4, url: "/bob", display: "@bob" },
       { kind: "url", start: 7, end: 23, url: "https://nim.example", display: "nim.example" },
     ]);
+  });
+
+  it("strips media t.co placeholders from text", () => {
+    const media = {
+      __typename: "Tweet",
+      rest_id: "400",
+      legacy: { __typename: "LegacyTweet", lang: "en" },
+      details: { created_at_ms: 1748606400000, full_text: "photo time https://t.co/abc" },
+      media_entities: [{ indices: [11, 27] }],
+      core: {
+        user_results: {
+          result: {
+            rest_id: "1",
+            core: { screen_name: "alice", name: "Alice" },
+            avatar: { image_url: "https://pbs.twimg.com/alice_normal.jpg" },
+          },
+        },
+      },
+    };
+    const timeline = parseTimeline({
+      data: {
+        user: {
+          result: {
+            timeline: {
+              timeline: {
+                instructions: [
+                  {
+                    type: "TimelineAddEntries",
+                    entries: [
+                      { entryId: "tweet-400", content: { itemContent: { tweet_results: { result: media } } } },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+    });
+    expect(timeline.tweets[0].text).toBe("photo time");
   });
 
   it("parses note tweet entity_set links", () => {

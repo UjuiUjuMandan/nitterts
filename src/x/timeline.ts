@@ -190,10 +190,20 @@ export function parseTweet(value: Record<string, unknown>, depth = 0): Tweet | u
     ? new Date(createdAtMs).toISOString()
     : stringValue(legacy?.created_at);
 
+  const rawText = noteText || stringValue(details?.full_text) || stringValue(legacy?.full_text);
+  const mediaRanges = (optionalArray(value.media_entities) ?? [])
+    .map(optionalRecord)
+    .filter((entity): entity is Record<string, unknown> => Boolean(entity))
+    .map((entity) => optionalArray(entity.indices))
+    .filter((indices): indices is unknown[] => Boolean(indices))
+    .map((indices) => ({ start: numberValue(indices[0]), end: numberValue(indices[1]) }))
+    .filter((range) => range.end > range.start);
+  const text = stripRanges(rawText, mediaRanges);
+
   const tweet: Tweet = {
     id,
     conversationId: stringValue(legacy?.conversation_id_str) || id,
-    text: noteText || stringValue(details?.full_text) || stringValue(legacy?.full_text),
+    text,
     createdAt,
     author,
     replies: numberValue(counts?.reply_count, legacy?.reply_count),
@@ -379,6 +389,23 @@ function parseLinks(
   }
 
   return links.sort((a, b) => a.start - b.start);
+}
+
+function stripRanges(text: string, ranges: { start: number; end: number }[]): string {
+  if (!ranges.length || !text) return text;
+  const ordered = [...ranges]
+    .filter((range) => range.end <= text.length && range.start >= 0)
+    .sort((a, b) => a.start - b.start || b.end - a.end);
+  let result = "";
+  let cursor = 0;
+  for (const range of ordered) {
+    if (range.start < cursor) continue;
+    result += text.slice(cursor, range.start);
+    cursor = range.end;
+    const after = text[cursor];
+    if (after === " " || after === "\n") cursor += 1;
+  }
+  return (result + text.slice(cursor)).trimEnd();
 }
 
 function addTweet(tweets: Tweet[], seen: Set<string>, tweet: Tweet): void {
