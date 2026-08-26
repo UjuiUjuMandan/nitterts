@@ -3,7 +3,7 @@ import type { Profile } from "../x/profile";
 import type { Timeline, Tweet } from "../x/timeline";
 
 export function renderProfilePage(profile: Profile, timeline: Timeline): string {
-  const title = `${profile.name} (@${profile.username}) | Nitter`;
+  const title = `${profile.name} (@${profile.username}) | nitter`;
   const tweets = [timeline.pinned, ...timeline.tweets]
     .filter((tweet): tweet is Tweet => Boolean(tweet))
     .filter((tweet, index, all) => all.findIndex((item) => item.id === tweet.id) === index)
@@ -50,7 +50,7 @@ export function renderProfilePage(profile: Profile, timeline: Timeline): string 
 }
 
 export function renderErrorPage(message: string, status: number): string {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${status} | Nitter</title><link rel="stylesheet" href="/style.css"></head><body>${renderNavbar()}<div class="container"><main class="panel-container"><section class="error-panel"><h1>${status}</h1><p>${escapeHtml(message)}</p></section></main></div></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${status} | nitter</title><link rel="stylesheet" href="/style.css"></head><body>${renderNavbar()}<div class="container"><main class="panel-container"><section class="error-panel"><h1>${status}</h1><p>${escapeHtml(message)}</p></section></main></div></body></html>`;
 }
 
 export function renderNavbar(): string {
@@ -143,7 +143,7 @@ function formatText(value: string): string {
 function formatDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(date);
+  return new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(date).replaceAll(",", "");
 }
 
 function formatNumber(value: number): string {

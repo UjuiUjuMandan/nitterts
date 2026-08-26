@@ -18,7 +18,7 @@ export function renderStatusPage(conversation: Conversation): string {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="${escapeAttribute(description)}">
   <meta name="theme-color" content="#1f1f1f">
-  <title>${escapeHtml(titleText)} | Nitter</title>
+  <title>${escapeHtml(titleText)} | nitter</title>
   <link rel="icon" href="/favicon.ico">
   <link rel="stylesheet" href="/style.css">
 </head>
