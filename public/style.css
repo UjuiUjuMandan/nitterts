@@ -775,6 +775,49 @@ nav {
   margin: 10px auto 0;
 }
 
+.search-page {
+  max-width: 600px;
+}
+
+.search-results {
+  width: 100%;
+}
+
+.search-field {
+  display: flex;
+  width: 100%;
+  gap: 4px;
+}
+
+.search-field input[type="text"] {
+  min-width: 0;
+  flex: 1;
+  padding: 7px 9px;
+  border: 1px solid var(--border-grey);
+  border-radius: 3px;
+  background: var(--bg-elements);
+  color: var(--fg-color);
+  font: inherit;
+}
+
+.search-field button {
+  width: 36px;
+  border: 1px solid var(--border-grey);
+  border-radius: 3px;
+  background: var(--bg-elements);
+  color: var(--fg-color);
+  cursor: pointer;
+}
+
+.search-field button:hover {
+  color: var(--accent-light);
+  border-color: var(--accent);
+}
+
+.search-tabs .tab-item {
+  width: 33.333%;
+}
+
 .error-panel {
   padding: 24px;
   background: var(--bg-panel);

@@ -3,12 +3,26 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#1f1f1f">
     <title>nitter</title>
+    <link rel="icon" href="/favicon.ico">
+    <link rel="stylesheet" href="/css/fontello.css">
+    <link rel="stylesheet" href="/style.css">
   </head>
   <body>
-    <main>
-      <h1>Nitter TS</h1>
-      <p>TypeScript rewrite for Cloudflare Pages.</p>
-    </main>
+    <nav><div class="inner-nav"><div class="nav-item"><a class="site-name" href="/">nitter</a></div><a href="/"><img class="site-logo" src="/logo.png" alt="Logo"></a><div class="nav-item right"><a class="icon-search" title="Search" href="/search"></a></div></div></nav>
+    <div class="container">
+      <main class="panel-container search-page">
+        <section class="timeline-container search-results">
+          <div class="timeline-header">
+            <form method="get" action="/search" class="search-field" autocomplete="off">
+              <input type="hidden" name="f" value="tweets">
+              <input type="text" name="q" placeholder="Search..." maxlength="500" autofocus dir="auto">
+              <button type="submit" aria-label="Search"><span class="icon-search"></span></button>
+            </form>
+          </div>
+        </section>
+      </main>
+    </div>
   </body>
 </html>

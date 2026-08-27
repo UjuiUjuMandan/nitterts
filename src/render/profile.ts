@@ -54,6 +54,7 @@ export function renderProfilePage(
           <li class="tab-item${tab === "tweets" ? " active" : ""}"><a href="${base}">Tweets</a></li>
           <li class="tab-item wide${tab === "replies" ? " active" : ""}"><a href="${base}/with_replies">Tweets &amp; Replies</a></li>
           <li class="tab-item${tab === "media" ? " active" : ""}"><a href="${base}/media">Media</a></li>
+          <li class="tab-item"><a href="${base}/search">Search</a></li>
         </ul>
         <div class="timeline">${timelineBody}</div>
         ${profile.protected || profile.suspended ? "" : more}
@@ -70,10 +71,10 @@ export function renderErrorPage(message: string, status: number): string {
 
 export function renderNavbar(rss = ""): string {
   const rssLink = rss ? `<a class="icon-rss" title="RSS Feed" href="${escapeAttribute(rss)}/rss"></a>` : "";
-  return `<nav><div class="inner-nav"><div class="nav-item"><a class="site-name" href="/">nitter</a></div><a href="/"><img class="site-logo" src="/logo.png" alt="Logo"></a><div class="nav-item right">${rssLink}</div></div></nav>`;
+  return `<nav><div class="inner-nav"><div class="nav-item"><a class="site-name" href="/">nitter</a></div><a href="/"><img class="site-logo" src="/logo.png" alt="Logo"></a><div class="nav-item right"><a class="icon-search" title="Search" href="/search"></a>${rssLink}</div></div></nav>`;
 }
 
-function renderProfileCard(profile: Profile): string {
+export function renderProfileCard(profile: Profile): string {
   const avatar = profile.avatar
     ? `<a class="profile-card-avatar" href="${escapeAttribute(mediaProxyUrl(profile.avatar))}" target="_blank" rel="noopener" aria-label="Open ${escapeAttribute(profile.name)}'s profile image"><img src="${escapeAttribute(mediaProxyUrl(profile.avatar))}" alt=""></a>`
     : "";
@@ -228,6 +229,7 @@ function linkify(text: string, links: TweetLink[]): string {
 
 function safeHref(link: TweetLink): string {
   if (link.kind === "mention") return `/${encodeURIComponent(link.url.replace(/^\//, ""))}`;
+  if ((link.kind === "hashtag" || link.kind === "cashtag") && link.url.startsWith("/search?")) return link.url;
   if (!/^https?:\/\//i.test(link.url)) return "";
   return link.url;
 }

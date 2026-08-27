@@ -4,6 +4,7 @@ import { fetchGraphql } from "./client";
 const GRAPH_USER_TWEETS = "LE3eTyeqhBh2g-fX85O2eQ/UserWithProfileTweetsQueryV2";
 const GRAPH_USER_REPLIES = "qUpkZU6eN8MbtQb7rC_pYg/UserTweetsAndReplies";
 const GRAPH_USER_MEDIA = "WK111rbR0vM0ZX4lyZCYjw/MediaTimelineV2";
+const GRAPH_SEARCH = "hyPfJYJ_XAtDYoslQc-Rgg/SearchTimeline";
 const FIELD_TOGGLES = {
   withArticleRichContentState: true,
   withArticlePlainText: false,
@@ -20,6 +21,7 @@ export type TweetAuthor = {
   avatar: string;
   blueVerified: boolean;
   verifiedType: VerifiedType;
+  protected?: boolean;
 };
 
 export type TweetMedia = {
@@ -60,6 +62,8 @@ export type Timeline = {
   pinned?: Tweet;
   cursor?: string;
 };
+
+export type SearchKind = "top" | "tweets" | "media";
 
 export type PhotoRailItem = {
   url: string;
@@ -106,10 +110,49 @@ export async function fetchProfileTimeline(
   );
 }
 
+export async function fetchSearchTimeline(
+  query: string,
+  kind: SearchKind,
+  session: CookieSession,
+  cursor?: string,
+): Promise<Timeline> {
+  const variables: Record<string, unknown> = {
+    rawQuery: query,
+    count: 20,
+    querySource: "typed_query",
+    product: kind === "top" ? "Top" : kind === "media" ? "Media" : "Latest",
+    withGrokTranslatedBio: true,
+    withQuickPromoteEligibilityTweetFields: false,
+    ...(cursor ? { cursor } : {}),
+  };
+  const timeline = filterSearchTimeline(
+    parseTimeline(await fetchGraphql(GRAPH_SEARCH, variables, FIELD_TOGGLES, session)),
+  );
+  if (cursor && timeline.cursor?.slice(0, 64) === cursor.slice(0, 64)) {
+    return { tweets: [] };
+  }
+  return timeline;
+}
+
+export function filterSearchTimeline(timeline: Timeline, username?: string): Timeline {
+  const expected = username?.toLowerCase();
+  const tweets = timeline.tweets.flatMap((tweet) => {
+    if (expected && tweet.author.username.toLowerCase() !== expected) return [];
+    const safe = sanitizeTweet(tweet);
+    return safe ? [safe] : [];
+  });
+  const pinned = timeline.pinned && (!expected || timeline.pinned.author.username.toLowerCase() === expected)
+    ? sanitizeTweet(timeline.pinned)
+    : undefined;
+  return { ...timeline, tweets, ...(pinned ? { pinned } : { pinned: undefined }) };
+}
+
 export function parseTimeline(value: unknown): Timeline {
   const instructions = firstArray(value, [
     ["data", "user", "result", "timeline", "timeline", "instructions"],
     ["data", "user_result", "result", "timeline_response", "timeline", "instructions"],
+    ["data", "search", "timeline_response", "timeline", "instructions"],
+    ["data", "search_by_raw_query", "search_timeline", "timeline", "instructions"],
   ]);
   const timeline: Timeline = { tweets: [] };
   const seen = new Set<string>();
@@ -141,6 +184,14 @@ export function parseTimeline(value: unknown): Timeline {
       }
     }
 
+    if (typeName(instruction) === "TimelineReplaceEntry") {
+      const replacedId = stringValue(instruction.entry_id_to_replace) || stringValue(instruction.entryIdToReplace);
+      const entry = optionalRecord(instruction.entry);
+      if (replacedId.startsWith("cursor-bottom") && entry) {
+        timeline.cursor = stringValue(recordAt(entry, ["content", "value"]));
+      }
+    }
+
     if (typeName(instruction) === "TimelinePinEntry") {
       const entry = optionalRecord(instruction.entry);
       const pinned = entry ? extractTweets(entry)[0] : undefined;
@@ -149,6 +200,14 @@ export function parseTimeline(value: unknown): Timeline {
   }
 
   return timeline;
+}
+
+function sanitizeTweet(tweet: Tweet): Tweet | undefined {
+  if (tweet.author.protected) return undefined;
+  const retweet = tweet.retweet ? sanitizeTweet(tweet.retweet) : undefined;
+  if (tweet.retweet && !retweet) return undefined;
+  const quote = tweet.quote ? sanitizeTweet(tweet.quote) : undefined;
+  return { ...tweet, retweet, quote };
 }
 
 function extractTweets(entry: Record<string, unknown>): Tweet[] {
@@ -260,6 +319,7 @@ function parseAuthor(value: Record<string, unknown> | undefined): TweetAuthor {
   const legacy = optionalRecord(value?.legacy);
   const core = optionalRecord(value?.core);
   const avatar = optionalRecord(value?.avatar);
+  const privacy = optionalRecord(value?.privacy);
   const verifiedType = parseVerifiedType(
     stringValue(optionalRecord(value?.verification)?.verified_type),
     value?.is_blue_verified === true || optionalRecord(value?.verification)?.is_blue_verified === true,
@@ -274,6 +334,7 @@ function parseAuthor(value: Record<string, unknown> | undefined): TweetAuthor {
     ),
     blueVerified: verifiedType !== "none",
     verifiedType,
+    protected: value?.protected === true || privacy?.protected === true || legacy?.protected === true,
   };
 }
 
@@ -379,13 +440,13 @@ function parseLinks(
     const record = optionalRecord(entity);
     if (!record) continue;
     const text = stringValue(record.text);
-    push("hashtag", record, `https://x.com/search?q=%23${encodeURIComponent(text)}`, `#${text}`);
+    push("hashtag", record, `/search?f=tweets&q=%23${encodeURIComponent(text)}`, `#${text}`);
   }
   for (const entity of optionalArray(value.cashtag_entities) ?? []) {
     const record = optionalRecord(entity);
     if (!record) continue;
     const text = stringValue(record.text);
-    push("cashtag", record, `https://x.com/search?q=%24${encodeURIComponent(text)}`, `$${text}`);
+    push("cashtag", record, `/search?f=tweets&q=%24${encodeURIComponent(text)}`, `$${text}`);
   }
   for (const entity of optionalArray(value.mention_entities) ?? []) {
     const record = optionalRecord(entity);
@@ -406,13 +467,13 @@ function parseLinks(
       const record = optionalRecord(entity);
       if (!record) continue;
       const text = stringValue(record.text);
-      push("hashtag", record, `https://x.com/search?q=%23${encodeURIComponent(text)}`, `#${text}`);
+      push("hashtag", record, `/search?f=tweets&q=%23${encodeURIComponent(text)}`, `#${text}`);
     }
     for (const entity of optionalArray(legacyEntities.symbols) ?? []) {
       const record = optionalRecord(entity);
       if (!record) continue;
       const text = stringValue(record.text);
-      push("cashtag", record, `https://x.com/search?q=%24${encodeURIComponent(text)}`, `$${text}`);
+      push("cashtag", record, `/search?f=tweets&q=%24${encodeURIComponent(text)}`, `$${text}`);
     }
     for (const entity of optionalArray(legacyEntities.user_mentions) ?? []) {
       const record = optionalRecord(entity);
