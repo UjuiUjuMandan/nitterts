@@ -273,14 +273,31 @@ export function parseTweet(value: Record<string, unknown>, depth = 0): Tweet | u
     : stringValue(legacy?.created_at);
 
   const rawText = noteText || stringValue(details?.full_text) || stringValue(legacy?.full_text);
-  const mediaRanges = (optionalArray(value.media_entities) ?? [])
-    .map(optionalRecord)
-    .filter((entity): entity is Record<string, unknown> => Boolean(entity))
-    .map((entity) => optionalArray(entity.indices))
-    .filter((indices): indices is unknown[] => Boolean(indices))
-    .map((indices) => ({ start: numberValue(indices[0]), end: numberValue(indices[1]) }))
-    .filter((range) => range.end > range.start);
-  const text = stripRanges(rawText, mediaRanges);
+  const urlEntities = [
+    ...(optionalArray(value.url_entities) ?? []),
+    ...(optionalArray(recordAt(legacy, ["entities", "urls"])) ?? []),
+    ...(optionalArray(recordAt(value, ["note_tweet", "note_tweet_results", "result", "entity_set", "urls"])) ?? []),
+  ];
+  const mediaEntities = [
+    ...(optionalArray(value.media_entities) ?? []),
+    ...(optionalArray(recordAt(legacy, ["extended_entities", "media"])) ?? []),
+    ...(optionalArray(recordAt(legacy, ["entities", "media"])) ?? []),
+  ];
+  const urlRanges = entityRanges(urlEntities);
+  const mediaRanges = entityRanges(mediaEntities)
+    .filter((media) => !urlRanges.some((url) => url.start === media.start && url.end === media.end));
+  const linkedShortUrls = new Set(
+    urlEntities.map(optionalRecord).map((entity) => stringValue(entity?.url)).filter(Boolean),
+  );
+  const rawUnits = [...rawText];
+  for (const range of urlRanges) {
+    linkedShortUrls.add(rawUnits.slice(range.start, range.end).join(""));
+  }
+  const removedRanges = normalizeRanges(rawText, [
+    ...mediaRanges,
+    ...unlinkedMediaUrlRanges(rawText, mediaEntities.length, linkedShortUrls),
+  ]);
+  const text = stripRanges(rawText, removedRanges);
 
   const tweet: Tweet = {
     id,
@@ -294,7 +311,7 @@ export function parseTweet(value: Record<string, unknown>, depth = 0): Tweet | u
     views: Number(stringValue(recordAt(value, ["views", "count"]))) || 0,
     replyTo: collectReplyUsers(value, legacy),
     media: parseMedia(value, legacy),
-    links: parseLinks(value, legacy),
+    links: remapLinks(parseLinks(value, legacy), removedRanges),
     pinned: false,
   };
 
@@ -489,19 +506,72 @@ function parseLinks(
 function stripRanges(text: string, ranges: { start: number; end: number }[]): string {
   if (!ranges.length || !text) return text;
   const units = [...text];
-  const ordered = [...ranges]
-    .filter((range) => range.end <= units.length && range.start >= 0)
-    .sort((a, b) => a.start - b.start || b.end - a.end);
   let result = "";
   let cursor = 0;
-  for (const range of ordered) {
-    if (range.start < cursor) continue;
+  for (const range of ranges) {
     result += units.slice(cursor, range.start).join("");
     cursor = range.end;
-    const after = units[cursor];
-    if (after === " " || after === "\n") cursor += 1;
   }
   return (result + units.slice(cursor).join("")).trimEnd();
+}
+
+function entityRanges(values: unknown[]): { start: number; end: number }[] {
+  return values
+    .map(optionalRecord)
+    .filter((entity): entity is Record<string, unknown> => Boolean(entity))
+    .map((entity) => optionalArray(entity.indices))
+    .filter((indices): indices is unknown[] => Boolean(indices))
+    .map((indices) => ({ start: numberValue(indices[0]), end: numberValue(indices[1]) }))
+    .filter((range) => range.end > range.start);
+}
+
+function unlinkedMediaUrlRanges(
+  text: string,
+  hasMedia: number,
+  linkedUrls: Set<string>,
+): { start: number; end: number }[] {
+  if (!hasMedia || !text.includes("t.co/")) return [];
+  const ranges: { start: number; end: number }[] = [];
+  for (const match of text.matchAll(/https?:\/\/t\.co\/[A-Za-z0-9]+(?=\s|$)/g)) {
+    if (linkedUrls.has(match[0])) continue;
+    const utf16Start = match.index ?? 0;
+    ranges.push({
+      start: [...text.slice(0, utf16Start)].length,
+      end: [...text.slice(0, utf16Start + match[0].length)].length,
+    });
+  }
+  return ranges;
+}
+
+function normalizeRanges(text: string, ranges: { start: number; end: number }[]): { start: number; end: number }[] {
+  const units = [...text];
+  const ordered = [...ranges]
+    .filter((range) => range.start >= 0 && range.end > range.start && range.end <= units.length)
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+  const merged: { start: number; end: number }[] = [];
+  for (const range of ordered) {
+    const previous = merged.at(-1);
+    if (previous && range.start <= previous.end) {
+      previous.end = Math.max(previous.end, range.end);
+    } else {
+      merged.push({ ...range });
+    }
+  }
+  return merged.map((range) => ({
+    start: range.start,
+    end: units[range.end] === " " || units[range.end] === "\n" ? range.end + 1 : range.end,
+  }));
+}
+
+function remapLinks(links: TweetLink[], removed: { start: number; end: number }[]): TweetLink[] {
+  if (!removed.length) return links;
+  return links.flatMap((link) => {
+    if (removed.some((range) => range.start < link.end && range.end > link.start)) return [];
+    const shift = removed
+      .filter((range) => range.end <= link.start)
+      .reduce((total, range) => total + range.end - range.start, 0);
+    return [{ ...link, start: link.start - shift, end: link.end - shift }];
+  });
 }
 
 function addTweet(tweets: Tweet[], seen: Set<string>, tweet: Tweet): void {

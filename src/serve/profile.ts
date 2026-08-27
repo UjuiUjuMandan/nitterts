@@ -3,6 +3,7 @@ import { fetchProfile, XApiError } from "../x/client";
 import { ProfileNotFoundError } from "../x/profile";
 import { withCookieSession } from "../x/sessions";
 import { fetchProfileTimeline, photoRail, type ProfileTab } from "../x/timeline";
+import { fetchOptionalBasedIn } from "./account-info";
 
 export async function serveProfilePage(
   request: Request,
@@ -44,7 +45,8 @@ export async function serveProfilePage(
         return { profile, timeline, photos };
       },
     );
-    return html(renderProfilePage(profile, timeline, tab, photos), 200);
+    const basedIn = profile.suspended ? "" : await fetchOptionalBasedIn(env.NITTER_SESSIONS, username);
+    return html(renderProfilePage({ ...profile, basedIn }, timeline, tab, photos), 200);
   } catch (error) {
     const notFound = error instanceof ProfileNotFoundError;
     const status = notFound ? 404 : error instanceof XApiError ? 502 : 500;

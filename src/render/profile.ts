@@ -88,9 +88,10 @@ export function renderProfileCard(profile: Profile): string {
     </div>
     <div class="profile-card-extra">
       ${profile.bio ? `<div class="profile-bio"><p dir="auto">${linkify(profile.bio, profile.bioLinks)}</p></div>` : ""}
-      ${profile.location ? `<div class="profile-location"><span>${escapeHtml(profile.location)}</span></div>` : ""}
-      ${profile.website && /^https?:\/\//i.test(profile.website) ? `<div class="profile-website"><a href="${escapeAttribute(profile.website)}" target="_blank" rel="noopener">${escapeHtml(shortLink(profile.website))}</a></div>` : profile.website ? `<div class="profile-website"><span>${escapeHtml(shortLink(profile.website))}</span></div>` : ""}
-      ${profile.joinedAt ? `<div class="profile-joindate" title="${escapeAttribute(profile.joinedAt)}"><span>${escapeHtml(formatJoinDate(profile.joinedAt))}</span></div>` : ""}
+      ${profile.location ? `<div class="profile-location"><span class="icon-location"></span><span>${escapeHtml(profile.location)}</span></div>` : ""}
+      ${profile.basedIn ? `<div class="profile-location"><span class="icon-location"></span><span>Based in ${escapeHtml(profile.basedIn)}</span></div>` : ""}
+      ${profile.website && /^https?:\/\//i.test(profile.website) ? `<div class="profile-website"><span class="icon-link"></span><a href="${escapeAttribute(profile.website)}" target="_blank" rel="noopener">${escapeHtml(shortLink(profile.website))}</a></div>` : profile.website ? `<div class="profile-website"><span class="icon-link"></span><span>${escapeHtml(shortLink(profile.website))}</span></div>` : ""}
+      ${profile.joinedAt ? `<div class="profile-joindate"><a href="/${encodeURIComponent(profile.username)}/about" title="${escapeAttribute(formatJoinDateFull(profile.joinedAt))}"><span class="icon-calendar"></span> ${escapeHtml(formatJoinDate(profile.joinedAt))}</a></div>` : ""}
       <div class="profile-card-extra-links">
         <ul class="profile-statlist">
           ${renderStat("Tweets", profile.tweets)}
@@ -133,9 +134,9 @@ function thumbUrl(url: string): string {
 export function renderTweet(source: Tweet, main = false): string {
   const tweet = source.retweet ?? source;
   const context = source.retweet
-    ? `<div class="retweet-header"><span>${escapeHtml(source.author.name)} retweeted</span></div>`
+    ? `<div class="retweet-header"><span><span class="icon-retweet"></span> ${escapeHtml(source.author.name)} retweeted</span></div>`
     : source.pinned
-      ? '<div class="pinned"><span>Pinned Tweet</span></div>'
+      ? '<div class="pinned"><span><span class="icon-pin"></span> Pinned Tweet</span></div>'
       : "";
   const media = renderMedia(tweet);
   const quote = tweet.quote ? renderQuote(tweet.quote) : "";
@@ -149,15 +150,15 @@ export function renderTweet(source: Tweet, main = false): string {
         ${tweet.author.avatar ? `<a class="tweet-avatar" href="/${encodeURIComponent(tweet.author.username)}" aria-label="View @${escapeAttribute(tweet.author.username)} profile"><img class="avatar round" src="${escapeAttribute(mediaProxyUrl(tweet.author.avatar))}" alt=""></a>` : ""}
         <div class="tweet-name-row">
           <div class="fullname-and-username"><a class="fullname" href="/${encodeURIComponent(tweet.author.username)}">${escapeHtml(tweet.author.name)}</a>${verifiedBadge(tweet.author.verifiedType)}<a class="username" href="/${encodeURIComponent(tweet.author.username)}">@${escapeHtml(tweet.author.username)}</a></div>
-          <span class="tweet-date"><a href="${permalink}">${escapeHtml(formatDate(tweet.createdAt))}</a></span>
+          <span class="tweet-date"><a href="${permalink}" title="${escapeAttribute(formatFullDate(tweet.createdAt))}">${escapeHtml(formatDate(tweet.createdAt))}</a></span>
         </div>
       </div>
       ${tweet.replyTo.length ? `<div class="replying-to">Replying to ${tweet.replyTo.map((name) => `@${escapeHtml(name)}`).join(" ")}</div>` : ""}
       <div class="tweet-content media-body" dir="auto">${linkify(tweet.text, tweet.links)}</div>
       ${media}
       ${quote}
-      <div class="tweet-stats"><span class="tweet-stat"><div class="icon-container"><span class="icon-comment"></span> ${formatNumber(tweet.replies)}</div></span><span class="tweet-stat"><div class="icon-container"><span class="icon-retweet"></span> ${formatNumber(tweet.retweets)}</div></span><span class="tweet-stat"><div class="icon-container"><span class="icon-heart"></span> ${formatNumber(tweet.likes)}</div></span>${tweet.views ? `<span class="tweet-stat"><div class="icon-container"><span class="icon-views"></span> ${formatNumber(tweet.views)}</div></span>` : ""}</div>
       ${main ? `<p class="tweet-published">${escapeHtml(formatFullDate(tweet.createdAt))}</p>` : ""}
+      <div class="tweet-stats"><span class="tweet-stat"><div class="icon-container"><span class="icon-comment"></span> ${formatNumber(tweet.replies)}</div></span><span class="tweet-stat"><div class="icon-container"><span class="icon-retweet"></span> ${formatNumber(tweet.retweets)}</div></span><span class="tweet-stat"><div class="icon-container"><span class="icon-heart"></span> ${formatNumber(tweet.likes)}</div></span>${tweet.views ? `<span class="tweet-stat"><div class="icon-container"><span class="icon-views"></span> ${formatNumber(tweet.views)}</div></span>` : ""}</div>
     </div>
   </article>`;
 }
@@ -165,11 +166,9 @@ export function renderTweet(source: Tweet, main = false): string {
 function formatFullDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("en", { dateStyle: "long", timeStyle: "short", timeZone: "UTC" })
-    .format(date)
-    .replace(/(\d{4}),? (\d{1,2}):(\d{2})/, "$1 · $2:$3")
-    .replaceAll(",", "")
-    .replace(" at ", " · ") + " UTC";
+  const month = new Intl.DateTimeFormat("en", { month: "short", timeZone: "UTC" }).format(date);
+  const time = new Intl.DateTimeFormat("en", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "UTC" }).format(date);
+  return `${month} ${date.getUTCDate()}, ${date.getUTCFullYear()} · ${time} UTC`;
 }
 
 function renderMedia(tweet: Tweet): string {
@@ -189,7 +188,8 @@ function renderMedia(tweet: Tweet): string {
 function renderQuote(tweet: Tweet): string {
   const permalink = `/${encodeURIComponent(tweet.author.username)}/status/${encodeURIComponent(tweet.id)}`;
   const media = renderMedia(tweet);
-  return `<blockquote class="quote"><a class="quote-link" href="${permalink}" aria-label="View quoted post"></a><div class="tweet-name-row"><div class="fullname-and-username"><strong class="fullname">${escapeHtml(tweet.author.name)}</strong><span class="username">@${escapeHtml(tweet.author.username)}</span></div></div><div class="quote-text" dir="auto">${linkify(tweet.text, tweet.links)}</div>${media ? `<div class="quote-media-container">${media}</div>` : ""}</blockquote>`;
+  const avatar = tweet.author.avatar ? `<img class="avatar round mini" src="${escapeAttribute(mediaProxyUrl(tweet.author.avatar))}" alt="" loading="lazy">` : "";
+  return `<blockquote class="quote quote-big"><a class="quote-link" href="${permalink}" aria-label="View quoted post"></a><div class="tweet-name-row"><div class="fullname-and-username">${avatar}<a class="fullname" href="/${encodeURIComponent(tweet.author.username)}">${escapeHtml(tweet.author.name)}</a>${verifiedBadge(tweet.author.verifiedType)}<a class="username" href="/${encodeURIComponent(tweet.author.username)}">@${escapeHtml(tweet.author.username)}</a></div><span class="tweet-date"><a href="${permalink}" title="${escapeAttribute(formatFullDate(tweet.createdAt))}">${escapeHtml(formatDate(tweet.createdAt))}</a></span></div><div class="quote-text" dir="auto">${linkify(tweet.text, tweet.links)}</div>${media ? `<div class="quote-media-container">${media}</div>` : ""}</blockquote>`;
 }
 
 function renderStat(label: string, value: number): string {
@@ -234,16 +234,36 @@ function safeHref(link: TweetLink): string {
   return link.url;
 }
 
-function formatDate(value: string): string {
+export function formatDate(value: string, now = new Date()): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(date).replaceAll(",", "");
+  const elapsed = Math.max(0, now.getTime() - date.getTime());
+  if (now.getUTCFullYear() !== date.getUTCFullYear()) {
+    const month = new Intl.DateTimeFormat("en", { month: "short", timeZone: "UTC" }).format(date);
+    return `${date.getUTCDate()} ${month} ${date.getUTCFullYear()}`;
+  }
+  if (elapsed >= 86_400_000) {
+    return new Intl.DateTimeFormat("en", { month: "short", day: "numeric", timeZone: "UTC" }).format(date);
+  }
+  if (elapsed >= 3_600_000) return `${Math.floor(elapsed / 3_600_000)}h`;
+  if (elapsed >= 60_000) return `${Math.floor(elapsed / 60_000)}m`;
+  if (elapsed >= 2_000) return `${Math.floor(elapsed / 1_000)}s`;
+  return "now";
 }
 
 function formatJoinDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("en", { month: "short", year: "numeric" }).format(date);
+  return `Joined ${new Intl.DateTimeFormat("en", { month: "long", year: "numeric", timeZone: "UTC" }).format(date)}`;
+}
+
+function formatJoinDateFull(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  const time = new Intl.DateTimeFormat("en", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "UTC" }).format(date);
+  const day = date.getUTCDate();
+  const month = new Intl.DateTimeFormat("en", { month: "short", timeZone: "UTC" }).format(date);
+  return `${time} - ${day} ${month} ${date.getUTCFullYear()}`;
 }
 
 function shortLink(value: string): string {

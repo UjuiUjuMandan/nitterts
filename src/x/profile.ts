@@ -9,6 +9,7 @@ export type Profile = {
   avatar: string;
   banner: string;
   location: string;
+  basedIn?: string;
   website: string;
   joinedAt: string;
   followers: number;

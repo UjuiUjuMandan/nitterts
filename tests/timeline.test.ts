@@ -98,6 +98,93 @@ describe("parseTimeline", () => {
     expect(timeline.tweets[0].text).toBe("photo time");
   });
 
+  it("strips legacy media placeholders but preserves overlapping external URLs", () => {
+    const base = {
+      __typename: "Tweet",
+      rest_id: "403",
+      core: {
+        user_results: {
+          result: {
+            rest_id: "1",
+            core: { screen_name: "alice", name: "Alice" },
+            avatar: { image_url: "https://pbs.twimg.com/alice_normal.jpg" },
+          },
+        },
+      },
+    };
+    const wrap = (result) => ({
+      data: {
+        user: {
+          result: {
+            timeline: {
+              timeline: {
+                instructions: [{
+                  entries: [{ entryId: "tweet-403", content: { itemContent: { tweet_results: { result } } } }],
+                }],
+              },
+            },
+          },
+        },
+      },
+    });
+    const mediaOnly = {
+      ...base,
+      legacy: {
+        full_text: "photo https://t.co/media",
+        created_at: "Wed Aug 26 12:00:00 +0000 2026",
+        extended_entities: { media: [{ type: "photo", media_url_https: "https://pbs.twimg.com/x.jpg", indices: [6, 24] }] },
+      },
+    };
+    expect(parseTimeline(wrap(mediaOnly)).tweets[0].text).toBe("photo");
+
+    const mediaWithoutIndices = {
+      ...mediaOnly,
+      rest_id: "405",
+      legacy: {
+        ...mediaOnly.legacy,
+        extended_entities: { media: [{ type: "photo", media_url_https: "https://pbs.twimg.com/x.jpg" }] },
+      },
+    };
+    expect(parseTimeline(wrap(mediaWithoutIndices)).tweets[0].text).toBe("photo");
+
+    const linkedMedia = {
+      ...base,
+      rest_id: "404",
+      details: { created_at_ms: 1748606400000, full_text: "visit https://t.co/shared" },
+      media_entities: [{ indices: [6, 25] }],
+      url_entities: [{ indices: [6, 25], expanded_url: "https://example.com", display_url: "example.com" }],
+      legacy: { __typename: "LegacyTweet", lang: "en" },
+    };
+    const parsed = parseTimeline(wrap(linkedMedia)).tweets[0];
+    expect(parsed.text).toBe("visit https://t.co/shared");
+    expect(renderTweet(parsed)).toContain('href="https://example.com"');
+
+    const mixedText = "pic https://t.co/media then https://t.co/link";
+    const linkStart = mixedText.indexOf("https://t.co/link");
+    const mediaInMiddle = {
+      ...base,
+      rest_id: "406",
+      legacy: {
+        full_text: mixedText,
+        created_at: "Wed Aug 26 12:00:00 +0000 2026",
+        entities: {
+          urls: [{
+            indices: [linkStart, mixedText.length],
+            url: "https://t.co/link",
+            expanded_url: "https://example.com/after",
+            display_url: "example.com/after",
+          }],
+        },
+        extended_entities: {
+          media: [{ type: "photo", media_url_https: "https://pbs.twimg.com/x.jpg", indices: [4, 22] }],
+        },
+      },
+    };
+    const mixed = parseTimeline(wrap(mediaInMiddle)).tweets[0];
+    expect(mixed.text).toBe("pic then https://t.co/link");
+    expect(renderTweet(mixed)).toContain('href="https://example.com/after"');
+  });
+
   it("strips media t.co placeholders with astral emoji offsets", () => {
     const media = {
       __typename: "Tweet",

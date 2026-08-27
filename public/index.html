@@ -12,16 +12,14 @@
   <body>
     <nav><div class="inner-nav"><div class="nav-item"><a class="site-name" href="/">nitter</a></div><a href="/"><img class="site-logo" src="/logo.png" alt="Logo"></a><div class="nav-item right"><a class="icon-search" title="Search" href="/search"></a></div></div></nav>
     <div class="container">
-      <main class="panel-container search-page">
-        <section class="timeline-container search-results">
-          <div class="timeline-header">
-            <form method="get" action="/search" class="search-field" autocomplete="off">
+      <main class="panel-container home-panel">
+        <div class="search-bar">
+            <form method="get" action="/search" autocomplete="off">
               <input type="hidden" name="f" value="tweets">
               <input type="text" name="q" placeholder="Search..." maxlength="500" autofocus dir="auto">
               <button type="submit" aria-label="Search"><span class="icon-search"></span></button>
             </form>
-          </div>
-        </section>
+        </div>
       </main>
     </div>
   </body>

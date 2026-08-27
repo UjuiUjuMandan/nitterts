@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderProfilePage } from "../src/render/profile";
+import { formatDate, renderProfilePage, renderTweet } from "../src/render/profile";
 
 describe("renderProfilePage", () => {
   it("escapes profile and tweet content and proxies images", () => {
@@ -185,5 +185,109 @@ describe("renderProfilePage", () => {
     );
     expect(suspended).toContain("This account is suspended.");
     expect(suspended).not.toContain("No tweets found.");
+  });
+
+  it("renders original profile metadata and tweet context details", () => {
+    const html = renderProfilePage(
+      {
+        id: "1",
+        username: "alice",
+        name: "Alice",
+        bio: "",
+        bioLinks: [],
+        avatar: "",
+        banner: "",
+        location: "",
+        basedIn: "United States",
+        website: "",
+        joinedAt: "Tue Jun 02 20:12:29 +0000 2009",
+        followers: 0,
+        following: 0,
+        tweets: 1,
+        media: 0,
+        likes: 0,
+        protected: false,
+        blueVerified: false,
+        verifiedType: "none",
+        suspended: false,
+      },
+      {
+        tweets: [{
+          id: "10",
+          conversationId: "10",
+          text: "hello",
+          createdAt: "2026-08-27T12:00:00.000Z",
+          author: {
+            id: "1",
+            username: "alice",
+            name: "Alice",
+            avatar: "",
+            blueVerified: false,
+            verifiedType: "none",
+          },
+          replies: 0,
+          retweets: 0,
+          likes: 0,
+          views: 0,
+          replyTo: [],
+          media: [],
+          links: [],
+          pinned: true,
+          quote: {
+            id: "11",
+            conversationId: "11",
+            text: "quoted",
+            createdAt: "2025-11-23T12:00:00.000Z",
+            author: {
+              id: "2",
+              username: "bob",
+              name: "Bob",
+              avatar: "https://pbs.twimg.com/bob.jpg",
+              blueVerified: false,
+              verifiedType: "none",
+            },
+            replies: 0,
+            retweets: 0,
+            likes: 0,
+            views: 0,
+            replyTo: [],
+            media: [],
+            links: [],
+            pinned: false,
+          },
+        }],
+      },
+    );
+    expect(html).toContain('<span class="icon-location"></span><span>Based in United States</span>');
+    expect(html).toContain('href="/alice/about"');
+    expect(html).toContain('<span class="icon-calendar"></span> Joined June 2009');
+    expect(html).toContain('class="icon-pin"');
+    expect(html).toContain('class="avatar round mini"');
+    expect(html).toContain(">23 Nov 2025</a>");
+
+    const main = renderTweet({
+      id: "12",
+      conversationId: "12",
+      text: "main",
+      createdAt: "2026-08-27T12:00:00.000Z",
+      author: { id: "1", username: "alice", name: "Alice", avatar: "", blueVerified: false, verifiedType: "none" },
+      replies: 1,
+      retweets: 2,
+      likes: 3,
+      views: 4,
+      replyTo: [],
+      media: [],
+      links: [],
+      pinned: false,
+    }, true);
+    expect(main.indexOf("tweet-published")).toBeLessThan(main.indexOf("tweet-stats"));
+  });
+
+  it("formats recent tweet timestamps relatively", () => {
+    const now = new Date("2026-08-27T15:00:00.000Z");
+    expect(formatDate("2026-08-27T13:00:00.000Z", now)).toBe("2h");
+    expect(formatDate("2026-08-27T14:58:00.000Z", now)).toBe("2m");
+    expect(formatDate("2026-08-26T15:00:00.000Z", now)).toBe("Aug 26");
+    expect(formatDate("2025-11-23T15:00:00.000Z", now)).toBe("23 Nov 2025");
   });
 });

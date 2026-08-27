@@ -3,6 +3,7 @@ import { parseProfile, type Profile } from "./profile";
 import { fetchTidPair, generateTransactionId } from "./tid";
 
 const GRAPH_USER = "Gb-d6r0vxPOADdG62OEBpQ/UserByScreenName";
+const GRAPH_ABOUT_ACCOUNT = "TzOG2twZEfhr9KmClvVVqA/AboutAccountQuery";
 const BEARER_TOKEN =
   "Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D" +
   "1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA";
@@ -70,6 +71,20 @@ export async function fetchProfile(
     session,
   );
   return parseProfile(value);
+}
+
+export async function fetchProfileBasedIn(
+  username: string,
+  session: CookieSession,
+): Promise<string> {
+  const value = await fetchGraphql(
+    GRAPH_ABOUT_ACCOUNT,
+    { screenName: username },
+    {},
+    session,
+  );
+  return stringAt(value, ["data", "user_result_by_screen_name", "result", "about_profile", "account_based_in"])
+    || stringAt(value, ["data", "userResultByScreenName", "result", "aboutProfile", "accountBasedIn"]);
 }
 
 export async function fetchGraphql(
@@ -169,4 +184,13 @@ function summarizeError(body: string): string {
   } catch {
     return "X API request failed";
   }
+}
+
+function stringAt(value: unknown, path: string[]): string {
+  let current = value;
+  for (const key of path) {
+    if (typeof current !== "object" || current === null || Array.isArray(current)) return "";
+    current = (current as Record<string, unknown>)[key];
+  }
+  return typeof current === "string" ? current : "";
 }

@@ -128,4 +128,19 @@ describe("search", () => {
     expect(html).toContain('href="/search?f=tweets&amp;q=%23nim"');
     expect(html).toContain("cursor=next-page");
   });
+
+  it("renders and preserves advanced search fields", () => {
+    const html = renderSearchPage({
+      query: "nim",
+      kind: "tweets",
+      since: "2026-01-01",
+      until: "2026-08-27",
+      minLikes: "10",
+    });
+    expect(html).toContain('id="search-panel-toggle" type="checkbox" checked');
+    expect(html).toContain('name="since" value="2026-01-01"');
+    expect(html).toContain('name="until" value="2026-08-27"');
+    expect(html).toContain('name="min_faves" min="0" value="10"');
+    expect(html).toContain("since=2026-01-01&amp;until=2026-08-27&amp;min_faves=10");
+  });
 });

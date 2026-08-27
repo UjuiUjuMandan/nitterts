@@ -15,6 +15,9 @@ export type SearchPage = {
   kind: SearchKind;
   cursor?: string;
   username?: string;
+  since?: string;
+  until?: string;
+  minLikes?: string;
 };
 
 export function renderSearchPage(
@@ -24,32 +27,33 @@ export function renderSearchPage(
   photos: PhotoRailItem[] = [],
 ): string {
   const title = search.query ? `Search (${search.query}) | nitter` : "Search | nitter";
+  const hasTerms = Boolean(search.query || search.username || search.since || search.until || search.minLikes);
   const base = search.username ? `/${encodeURIComponent(search.username)}/search` : "/search";
   const items = timeline?.tweets.map((tweet) => renderTweet(tweet)).join("") ?? "";
   const body = profile?.suspended
     ? '<div class="timeline-header timeline-message"><h2>This account is suspended.</h2></div>'
     : profile?.protected
       ? `<div class="timeline-header timeline-message"><h2>This account's tweets are protected.</h2><p>Only confirmed followers have access to @${escapeHtml(profile.username)}'s tweets.</p></div>`
-      : !search.query && !search.username
-        ? '<div class="timeline-header timeline-message"><h2>Enter a search term.</h2></div>'
+      : !hasTerms
+        ? '<div class="timeline-header timeline-message"><h2>No items found</h2></div>'
         : items || '<div class="timeline-header timeline-message"><h2>No results found.</h2></div>';
   const more = timeline?.cursor
     ? `<div class="show-more"><a href="${escapeAttribute(searchUrl(base, search, timeline.cursor))}">Load more</a></div>`
     : "";
-  const content = `<section class="timeline-container search-results">
+  const contentBody = `
     ${profile ? renderProfileTabs(profile.username) : ""}
     <div class="timeline-header">${renderSearchForm(base, search)}</div>
     ${search.username ? "" : renderSearchTabs(search)}
     <div class="timeline">${body}</div>
-    ${more}
-  </section>`;
+    ${more}`;
+  const content = `<section class="timeline-container search-results">${contentBody}</section>`;
   const main = profile
     ? `<main class="profile-tabs">
         ${profile.banner ? `<div class="profile-banner"><a href="${escapeAttribute(mediaProxyUrl(profile.banner))}" target="_blank" rel="noopener"><img src="${escapeAttribute(mediaProxyUrl(profile.banner))}" alt=""></a></div>` : ""}
         <aside class="profile-tab sticky">${renderProfileCard(profile)}${renderPhotoRail(profile, photos)}</aside>
         ${content}
       </main>`
-    : `<main class="panel-container search-page">${content}</main>`;
+    : `<main class="timeline-container search-results search-page">${contentBody}</main>`;
 
   return `<!doctype html>
 <html lang="en">
@@ -70,10 +74,18 @@ export function renderSearchPage(
 }
 
 function renderSearchForm(action: string, search: SearchPage): string {
+  const panelOpen = Boolean(search.since || search.until || search.minLikes);
   return `<form method="get" action="${escapeAttribute(action)}" class="search-field" autocomplete="off">
     <input type="hidden" name="f" value="${search.kind}">
     <input type="text" name="q" value="${escapeAttribute(search.query)}" placeholder="Enter search..." maxlength="500" dir="auto">
     <button type="submit" aria-label="Search"><span class="icon-search"></span></button>
+    <input id="search-panel-toggle" type="checkbox"${panelOpen ? " checked" : ""}>
+    <label for="search-panel-toggle" title="Advanced search"><span class="icon-down"></span></label>
+    <div class="search-panel">
+      <label><span>Since</span><input type="date" name="since" value="${escapeAttribute(search.since ?? "")}"></label>
+      <label><span>Until</span><input type="date" name="until" value="${escapeAttribute(search.until ?? "")}"></label>
+      <label><span>Minimum likes</span><input type="number" name="min_faves" min="0" value="${escapeAttribute(search.minLikes ?? "")}"></label>
+    </div>
   </form>`;
 }
 
@@ -86,7 +98,9 @@ function renderSearchTabs(search: SearchPage): string {
 }
 
 function searchTab(label: string, kind: SearchKind, search: SearchPage): string {
-  const href = `/search?f=${kind}&q=${encodeURIComponent(search.query)}`;
+  const params = searchParams(search);
+  params.set("f", kind);
+  const href = `/search?${params}`;
   return `<li class="tab-item${search.kind === kind ? " active" : ""}"><a href="${escapeAttribute(href)}">${label}</a></li>`;
 }
 
@@ -101,6 +115,15 @@ function renderProfileTabs(username: string): string {
 }
 
 function searchUrl(base: string, search: SearchPage, cursor: string): string {
-  const params = new URLSearchParams({ f: search.kind, q: search.query, cursor });
+  const params = searchParams(search);
+  params.set("cursor", cursor);
   return `${base}?${params}`;
+}
+
+function searchParams(search: SearchPage): URLSearchParams {
+  const params = new URLSearchParams({ f: search.kind, q: search.query });
+  if (search.since) params.set("since", search.since);
+  if (search.until) params.set("until", search.until);
+  if (search.minLikes) params.set("min_faves", search.minLikes);
+  return params;
 }

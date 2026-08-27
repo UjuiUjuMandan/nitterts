@@ -15,11 +15,15 @@ export async function withCookieSession<T>(
       return await action(session);
     } catch (error) {
       lastError = error;
-      if (!(error instanceof XApiError) || !RETRYABLE_SESSION_STATUSES.has(error.status)) {
+      if (!isRetryableSessionError(error)) {
         throw error;
       }
     }
   }
 
   throw lastError ?? new Error("No cookie sessions configured");
+}
+
+export function isRetryableSessionError(error: unknown): error is XApiError {
+  return error instanceof XApiError && RETRYABLE_SESSION_STATUSES.has(error.status);
 }
