@@ -107,6 +107,27 @@ describe("preferences", () => {
     }));
     expect(proxiedAttack.status).toBe(403);
 
+    const nullOrigin = await serveSavePreferences(new Request("https://nitter.test/settings", {
+      method: "POST",
+      headers: { ...headers, origin: "null", "sec-fetch-site": "same-origin" },
+      body: "stickyNav=on&returnTo=%2Fsettings",
+    }));
+    expect(nullOrigin.status).toBe(303);
+
+    const nullOriginCrossSite = await serveSavePreferences(new Request("https://nitter.test/settings", {
+      method: "POST",
+      headers: { ...headers, origin: "null", "sec-fetch-site": "cross-site" },
+      body: "stickyNav=on",
+    }));
+    expect(nullOriginCrossSite.status).toBe(403);
+
+    const nullOriginNoFetchSite = await serveSavePreferences(new Request("https://nitter.test/settings", {
+      method: "POST",
+      headers: { origin: "null", "content-type": "application/x-www-form-urlencoded" },
+      body: "stickyNav=on",
+    }));
+    expect(nullOriginNoFetchSite.status).toBe(403);
+
     const oversized = await serveSavePreferences(new Request("https://nitter.test/settings", {
       method: "POST",
       headers,

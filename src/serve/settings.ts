@@ -58,7 +58,14 @@ export async function serveResetPreferences(request: Request): Promise<Response>
 
 function validateMutation(request: Request): Response | undefined {
   const url = effectiveRequestUrl(request);
-  if (request.headers.get("origin") !== url.origin || request.headers.get("sec-fetch-site") === "cross-site") {
+  // Browsers force-set Sec-Fetch-Site and page JS cannot forge it. Some
+  // privacy extensions and sandboxed contexts send Origin: null; those are
+  // accepted only when the browser still reports the request as same-origin.
+  const origin = request.headers.get("origin");
+  const fetchSite = request.headers.get("sec-fetch-site");
+  const sameOrigin = origin === url.origin
+    || ((origin === null || origin === "null") && fetchSite === "same-origin");
+  if (!sameOrigin || fetchSite === "cross-site") {
     return new Response("Cross-site preference update rejected", { status: 403 });
   }
   if (!(request.headers.get("content-type") ?? "").toLowerCase().startsWith("application/x-www-form-urlencoded")) {
