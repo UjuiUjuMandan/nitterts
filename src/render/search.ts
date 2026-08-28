@@ -1,6 +1,6 @@
 import { mediaProxyUrl } from "../media";
 import type { Profile } from "../x/profile";
-import type { PhotoRailItem, SearchKind, Timeline } from "../x/timeline";
+import type { PhotoRailItem, SearchKind, SearchList, SearchResults } from "../x/timeline";
 import {
   escapeAttribute,
   escapeHtml,
@@ -8,6 +8,8 @@ import {
   renderPhotoRail,
   renderProfileCard,
   renderTweet,
+  linkify,
+  verifiedBadge,
 } from "./profile";
 
 export type SearchPage = {
@@ -22,14 +24,19 @@ export type SearchPage = {
 
 export function renderSearchPage(
   search: SearchPage,
-  timeline?: Timeline,
+  results?: SearchResults,
   profile?: Profile,
   photos: PhotoRailItem[] = [],
 ): string {
   const title = search.query ? `Search (${search.query}) | nitter` : "Search | nitter";
   const hasTerms = Boolean(search.query || search.username || search.since || search.until || search.minLikes);
   const base = search.username ? `/${encodeURIComponent(search.username)}/search` : "/search";
-  const items = timeline?.tweets.map((tweet) => renderTweet(tweet)).join("") ?? "";
+  const timeline = results?.timeline;
+  const items = search.kind === "users"
+    ? results?.users?.map(renderUserResult).join("") ?? ""
+    : search.kind === "lists"
+      ? results?.lists?.map(renderListResult).join("") ?? ""
+      : timeline?.tweets.map((tweet) => renderTweet(tweet)).join("") ?? "";
   const body = profile?.suspended
     ? '<div class="timeline-header timeline-message"><h2>This account is suspended.</h2></div>'
     : profile?.protected
@@ -37,8 +44,9 @@ export function renderSearchPage(
       : !hasTerms
         ? '<div class="timeline-header timeline-message"><h2>No items found</h2></div>'
         : items || '<div class="timeline-header timeline-message"><h2>No results found.</h2></div>';
-  const more = timeline?.cursor
-    ? `<div class="show-more"><a href="${escapeAttribute(searchUrl(base, search, timeline.cursor))}">Load more</a></div>`
+  const cursor = results?.cursor ?? timeline?.cursor;
+  const more = cursor
+    ? `<div class="show-more"><a href="${escapeAttribute(searchUrl(base, search, cursor))}">Load more</a></div>`
     : "";
   const contentBody = `
     ${profile ? renderProfileTabs(profile.username) : ""}
@@ -74,18 +82,20 @@ export function renderSearchPage(
 }
 
 function renderSearchForm(action: string, search: SearchPage): string {
-  const panelOpen = Boolean(search.since || search.until || search.minLikes);
+  const directorySearch = search.kind === "users" || search.kind === "lists";
+  const panelOpen = !directorySearch && Boolean(search.since || search.until || search.minLikes);
+  const placeholder = search.kind === "users" ? "Enter username..." : "Enter search...";
   return `<form method="get" action="${escapeAttribute(action)}" class="search-field" autocomplete="off">
     <input type="hidden" name="f" value="${search.kind}">
-    <input type="text" name="q" value="${escapeAttribute(search.query)}" placeholder="Enter search..." maxlength="500" dir="auto">
+    <input type="text" name="q" value="${escapeAttribute(search.query)}" placeholder="${placeholder}" maxlength="500" dir="auto">
     <button type="submit" aria-label="Search"><span class="icon-search"></span></button>
-    <input id="search-panel-toggle" type="checkbox"${panelOpen ? " checked" : ""}>
+    ${directorySearch ? "" : `<input id="search-panel-toggle" type="checkbox"${panelOpen ? " checked" : ""}>
     <label for="search-panel-toggle" title="Advanced search"><span class="icon-down"></span></label>
     <div class="search-panel">
       <label><span>Since</span><input type="date" name="since" value="${escapeAttribute(search.since ?? "")}"></label>
       <label><span>Until</span><input type="date" name="until" value="${escapeAttribute(search.until ?? "")}"></label>
       <label><span>Minimum likes</span><input type="number" name="min_faves" min="0" value="${escapeAttribute(search.minLikes ?? "")}"></label>
-    </div>
+    </div>`}
   </form>`;
 }
 
@@ -94,6 +104,8 @@ function renderSearchTabs(search: SearchPage): string {
     ${searchTab("Top", "top", search)}
     ${searchTab("Latest", "tweets", search)}
     ${searchTab("Media", "media", search)}
+    ${searchTab("Users", "users", search)}
+    ${searchTab("Lists", "lists", search)}
   </ul>`;
 }
 
@@ -126,4 +138,47 @@ function searchParams(search: SearchPage): URLSearchParams {
   if (search.until) params.set("until", search.until);
   if (search.minLikes) params.set("min_faves", search.minLikes);
   return params;
+}
+
+function renderUserResult(profile: Profile): string {
+  const href = `/${encodeURIComponent(profile.username)}`;
+  const avatar = profile.avatar
+    ? `<a class="tweet-avatar" href="${href}"><img class="avatar round" src="${escapeAttribute(mediaProxyUrl(profile.avatar))}" alt="" loading="lazy"></a>`
+    : "";
+  return `<article class="timeline-item" data-username="${escapeAttribute(profile.username)}">
+    <a class="tweet-link" href="${href}" aria-label="View @${escapeAttribute(profile.username)} profile"></a>
+    <div class="tweet-body profile-result">
+      <div class="tweet-header">${avatar}<div class="tweet-name-row"><div class="fullname-and-username"><a class="fullname" href="${href}">${escapeHtml(profile.name)}</a>${verifiedBadge(profile.verifiedType)}</div></div><a class="username" href="${href}">@${escapeHtml(profile.username)}</a></div>
+      ${profile.bio ? `<div class="tweet-content media-body" dir="auto">${linkify(profile.bio, profile.bioLinks)}</div>` : ""}
+    </div>
+  </article>`;
+}
+
+function renderListResult(result: SearchList): string {
+  const mentioned = mentionedUsername(result.followersContext);
+  const context = result.followersContext
+    ? `${result.facepiles.map((url, index) => {
+        const image = `<img class="list-facepile" src="${escapeAttribute(mediaProxyUrl(url))}" alt="" loading="lazy">`;
+        return index === 0 && mentioned ? `<a class="facepile-link" href="/${encodeURIComponent(mentioned)}">${image}</a>` : image;
+      }).join("")}${renderMentionedText(result.followersContext)}`
+    : `${result.owner.avatar ? `<a class="facepile-link" href="/${encodeURIComponent(result.owner.username)}"><img class="list-facepile" src="${escapeAttribute(mediaProxyUrl(result.owner.avatar))}" alt="" loading="lazy"></a>` : ""}<a class="fullname" href="/${encodeURIComponent(result.owner.username)}">${escapeHtml(result.owner.name)}</a><a class="username" href="/${encodeURIComponent(result.owner.username)}">@${escapeHtml(result.owner.username)}</a>`;
+  return `<article class="timeline-item list-result">
+    <div class="list-result-banner">${result.banner ? `<img src="${escapeAttribute(mediaProxyUrl(result.banner))}" alt="" loading="lazy">` : ""}</div>
+    <div class="list-result-body">
+      <div class="list-result-title fullname-and-username"><span class="list-name fullname">${escapeHtml(result.name)}</span><span class="list-members">· ${result.members.toLocaleString("en-US")} members</span></div>
+      <div class="list-result-context">${context}</div>
+      ${result.description ? `<div class="list-result-description">${escapeHtml(result.description)}</div>` : ""}
+    </div>
+  </article>`;
+}
+
+function mentionedUsername(value: string): string {
+  return [...value.matchAll(/(?:^|\s)@([A-Za-z0-9_]{1,15})(?=\s|$)/g)].at(-1)?.[1] ?? "";
+}
+
+function renderMentionedText(value: string): string {
+  return escapeHtml(value).replace(
+    /(^|\s)@([A-Za-z0-9_]{1,15})(?=\s|$)/g,
+    (_match, prefix: string, username: string) => `${prefix}<a href="/${encodeURIComponent(username)}">@${escapeHtml(username)}</a>`,
+  );
 }

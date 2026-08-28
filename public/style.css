@@ -940,7 +940,93 @@ nav {
 }
 
 .search-tabs .tab-item {
-  width: 33.333%;
+  width: 20%;
+}
+
+.profile-result {
+  min-height: 54px;
+}
+
+.profile-result .username {
+  margin: 0;
+}
+
+.profile-result .tweet-header {
+  margin-bottom: 0;
+}
+
+.list-result {
+  align-items: flex-start;
+}
+
+.list-result-banner {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  margin-right: 10px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--darker-grey);
+  position: relative;
+  z-index: 1;
+}
+
+.list-result-banner img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.list-result-body {
+  min-width: 0;
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.list-result-body a,
+.list-result-description {
+  pointer-events: all;
+}
+
+.list-result-title {
+  align-items: baseline;
+}
+
+.list-members {
+  flex-shrink: 0;
+  margin-left: 0.3em;
+  color: var(--fg-faded);
+}
+
+.list-result-context {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 2px;
+  color: var(--fg-faded);
+}
+
+.list-result-context a {
+  color: var(--fg-dark);
+}
+
+.list-result-context a.fullname {
+  color: var(--fg-color);
+}
+
+.list-facepile {
+  width: 20px;
+  height: 20px;
+  margin-right: 4px;
+  border-radius: 50%;
+}
+
+.list-result-description {
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .about-account {

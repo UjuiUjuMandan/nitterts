@@ -1,5 +1,6 @@
 import type { CookieSession } from "../session";
 import { fetchGraphql } from "./client";
+import { parseProfileResult, type Profile } from "./profile";
 
 const GRAPH_USER_TWEETS = "LE3eTyeqhBh2g-fX85O2eQ/UserWithProfileTweetsQueryV2";
 const GRAPH_USER_REPLIES = "qUpkZU6eN8MbtQb7rC_pYg/UserTweetsAndReplies";
@@ -63,7 +64,26 @@ export type Timeline = {
   cursor?: string;
 };
 
-export type SearchKind = "top" | "tweets" | "media";
+export type TweetSearchKind = "top" | "tweets" | "media";
+export type SearchKind = TweetSearchKind | "users" | "lists";
+
+export type SearchList = {
+  id: string;
+  name: string;
+  description: string;
+  members: number;
+  banner: string;
+  owner: Profile;
+  followersContext: string;
+  facepiles: string[];
+};
+
+export type SearchResults = {
+  timeline?: Timeline;
+  users?: Profile[];
+  lists?: SearchList[];
+  cursor?: string;
+};
 
 export type PhotoRailItem = {
   url: string;
@@ -112,7 +132,7 @@ export async function fetchProfileTimeline(
 
 export async function fetchSearchTimeline(
   query: string,
-  kind: SearchKind,
+  kind: TweetSearchKind,
   session: CookieSession,
   cursor?: string,
 ): Promise<Timeline> {
@@ -132,6 +152,204 @@ export async function fetchSearchTimeline(
     return { tweets: [] };
   }
   return timeline;
+}
+
+function searchVariables(query: string, product: "People" | "Lists", cursor?: string): Record<string, unknown> {
+  return {
+    rawQuery: query,
+    count: 20,
+    querySource: "typed_query",
+    product,
+    withGrokTranslatedBio: true,
+    withQuickPromoteEligibilityTweetFields: false,
+    ...(cursor ? { cursor } : {}),
+  };
+}
+
+export async function fetchUserSearch(
+  query: string,
+  session: CookieSession,
+  cursor?: string,
+): Promise<{ users: Profile[]; cursor?: string }> {
+  const response = await fetchGraphql(
+    GRAPH_SEARCH,
+    searchVariables(query, "People", cursor),
+    FIELD_TOGGLES,
+    session,
+  );
+  const result = parseSearchUsers(response);
+  return cursor && result.cursor?.slice(0, 64) === cursor.slice(0, 64)
+    ? { users: [] }
+    : result;
+}
+
+export async function fetchListSearch(
+  query: string,
+  session: CookieSession,
+  cursor?: string,
+): Promise<{ lists: SearchList[]; cursor?: string }> {
+  const response = await fetchGraphql(
+    GRAPH_SEARCH,
+    searchVariables(query, "Lists", cursor),
+    FIELD_TOGGLES,
+    session,
+  );
+  const result = parseSearchLists(response);
+  return cursor && result.cursor?.slice(0, 64) === cursor.slice(0, 64)
+    ? { lists: [] }
+    : result;
+}
+
+export function parseSearchUsers(value: unknown): { users: Profile[]; cursor?: string } {
+  const users: Profile[] = [];
+  const seen = new Set<string>();
+  const instructions = searchInstructions(value);
+  for (const instructionValue of instructions) {
+    const instruction = optionalRecord(instructionValue);
+    if (!instruction) continue;
+    for (const entryValue of optionalArray(instruction.entries) ?? []) {
+      const entry = optionalRecord(entryValue);
+      const result = entry && firstRecord(entry, [
+        ["content", "itemContent", "user_results", "result"],
+        ["content", "item_content", "user_results", "result"],
+      ]);
+      addSearchUser(users, seen, result);
+      if (!entry) continue;
+      for (const itemValue of firstArray(entry, [["content", "items"]])) {
+        const item = optionalRecord(itemValue);
+        const nested = item && firstRecord(item, [
+          ["item", "itemContent", "user_results", "result"],
+          ["item", "item_content", "user_results", "result"],
+        ]);
+        addSearchUser(users, seen, nested);
+      }
+    }
+    for (const itemValue of optionalArray(instruction.moduleItems) ?? []) {
+      const item = optionalRecord(itemValue);
+      const result = item && firstRecord(item, [
+        ["item", "itemContent", "user_results", "result"],
+        ["item", "item_content", "user_results", "result"],
+      ]);
+      addSearchUser(users, seen, result);
+    }
+  }
+  const cursor = parseSearchCursor(instructions);
+  return { users, ...(cursor ? { cursor } : {}) };
+}
+
+export function parseSearchLists(value: unknown): { lists: SearchList[]; cursor?: string } {
+  const lists: SearchList[] = [];
+  const seen = new Set<string>();
+  const instructions = searchInstructions(value);
+  for (const instructionValue of instructions) {
+    const instruction = optionalRecord(instructionValue);
+    if (!instruction) continue;
+    for (const entryValue of optionalArray(instruction.entries) ?? []) {
+      const entry = optionalRecord(entryValue);
+      if (!entry) continue;
+      const direct = firstRecord(entry, [
+        ["content", "itemContent", "list"],
+        ["content", "item_content", "list"],
+      ]);
+      addSearchList(lists, seen, direct);
+      for (const itemValue of firstArray(entry, [["content", "items"]])) {
+        const item = optionalRecord(itemValue);
+        const list = item && firstRecord(item, [
+          ["item", "itemContent", "list"],
+          ["item", "item_content", "list"],
+        ]);
+        addSearchList(lists, seen, list);
+      }
+    }
+    for (const itemValue of optionalArray(instruction.moduleItems) ?? []) {
+      const item = optionalRecord(itemValue);
+      const list = item && firstRecord(item, [
+        ["item", "itemContent", "list"],
+        ["item", "item_content", "list"],
+      ]);
+      addSearchList(lists, seen, list);
+    }
+  }
+  const cursor = parseSearchCursor(instructions);
+  return { lists, ...(cursor ? { cursor } : {}) };
+}
+
+function searchInstructions(value: unknown): unknown[] {
+  return firstArray(value, [
+    ["data", "search", "timeline_response", "timeline", "instructions"],
+    ["data", "search_by_raw_query", "search_timeline", "timeline", "instructions"],
+  ]);
+}
+
+function parseSearchCursor(instructions: unknown[]): string {
+  let cursor = "";
+  for (const instructionValue of instructions) {
+    const instruction = optionalRecord(instructionValue);
+    if (!instruction) continue;
+    for (const entryValue of optionalArray(instruction.entries) ?? []) {
+      const entry = optionalRecord(entryValue);
+      if (!entry) continue;
+      const entryId = stringValue(entry.entryId) || stringValue(entry.entry_id);
+      if (entryId.startsWith("cursor-bottom")) {
+        cursor = stringValue(recordAt(entry, ["content", "value"]));
+      }
+    }
+    if (typeName(instruction) === "TimelineReplaceEntry") {
+      const replacedId = stringValue(instruction.entry_id_to_replace) || stringValue(instruction.entryIdToReplace);
+      const entry = optionalRecord(instruction.entry);
+      if (replacedId.startsWith("cursor-bottom") && entry) {
+        cursor = stringValue(recordAt(entry, ["content", "value"]));
+      }
+    }
+  }
+  return cursor;
+}
+
+function addSearchUser(users: Profile[], seen: Set<string>, result?: Record<string, unknown>): void {
+  if (!result) return;
+  try {
+    const profile = parseProfileResult(result);
+    if (!profile.id || seen.has(profile.id)) return;
+    const avatar = stringValue(recordAt(result, ["avatar", "image_url"]))
+      || stringValue(recordAt(result, ["legacy", "profile_image_url_https"]));
+    profile.avatar = avatar.replace("_normal", "_bigger") || profile.avatar;
+    seen.add(profile.id);
+    users.push(profile);
+  } catch {
+    // Search timelines can include unavailable user tombstones.
+  }
+}
+
+function addSearchList(lists: SearchList[], seen: Set<string>, value?: Record<string, unknown>): void {
+  if (!value) return;
+  const id = stringValue(value.id_str) || stringValue(value.rest_id);
+  if (!id || seen.has(id)) return;
+  const ownerResult = firstRecord(value, [["user_results", "result"]]);
+  if (!ownerResult) return;
+  let owner: Profile;
+  try {
+    owner = parseProfileResult(ownerResult);
+    const avatar = stringValue(recordAt(ownerResult, ["avatar", "image_url"]))
+      || stringValue(recordAt(ownerResult, ["legacy", "profile_image_url_https"]));
+    owner.avatar = avatar.replace("_normal", "_mini") || owner.avatar;
+  } catch {
+    return;
+  }
+  seen.add(id);
+  const facepiles = (optionalArray(value.facepile_urls) ?? [])
+    .map(stringValue)
+    .filter(Boolean);
+  lists.push({
+    id,
+    name: stringValue(value.name),
+    description: stringValue(value.description),
+    members: numberValue(value.member_count),
+    banner: stringValue(recordAt(value, ["custom_banner_media", "media_info", "original_img_url"]))
+      || stringValue(recordAt(value, ["default_banner_media", "media_info", "original_img_url"])),
+    owner,
+    followersContext: stringValue(value.followers_context),
+    facepiles,
+  });
 }
 
 export function filterSearchTimeline(timeline: Timeline, username?: string): Timeline {

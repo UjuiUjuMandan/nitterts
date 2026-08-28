@@ -196,7 +196,7 @@ function renderStat(label: string, value: number): string {
   return `<li><span class="profile-stat-header">${label}</span><span class="profile-stat-num">${formatNumber(value)}</span></li>`;
 }
 
-function verifiedBadge(type: VerifiedType): string {
+export function verifiedBadge(type: VerifiedType): string {
   if (type === "none") return "";
   const title = type === "business" ? "Verified business account" : type === "government" ? "Verified government account" : "Verified blue account";
   return `<div class="verified-icon ${type}" title="${title}"><div class="icon-container"><span class="icon-circle verified-icon-circle" title="${title}"></span></div><div class="icon-container"><span class="icon-ok verified-icon-check" title="${title}"></span></div></div>`;
@@ -206,7 +206,7 @@ function formatText(value: string): string {
   return escapeHtml(value).replace(/\n/g, "<br>");
 }
 
-function linkify(text: string, links: TweetLink[]): string {
+export function linkify(text: string, links: TweetLink[]): string {
   if (!links.length) return formatText(text);
   const units = [...text];
   const ordered = [...links]

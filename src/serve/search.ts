@@ -1,9 +1,20 @@
 import { renderErrorPage } from "../render/profile";
 import { renderSearchPage } from "../render/search";
 import { fetchProfile, XApiError } from "../x/client";
-import { ProfileNotFoundError } from "../x/profile";
+import { ProfileNotFoundError, type Profile } from "../x/profile";
 import { withCookieSession } from "../x/sessions";
-import { filterSearchTimeline, fetchProfileTimeline, fetchSearchTimeline, photoRail, type SearchKind } from "../x/timeline";
+import {
+  filterSearchTimeline,
+  fetchListSearch,
+  fetchProfileTimeline,
+  fetchSearchTimeline,
+  fetchUserSearch,
+  photoRail,
+  type PhotoRailItem,
+  type SearchKind,
+  type SearchResults,
+  type TweetSearchKind,
+} from "../x/timeline";
 import { fetchOptionalBasedIn } from "./account-info";
 
 export async function serveSearchPage(request: Request, env: Env, username?: string): Promise<Response> {
@@ -14,18 +25,23 @@ export async function serveSearchPage(request: Request, env: Env, username?: str
   const query = url.searchParams.get("q")?.trim() ?? "";
   if (query.length > 500) return html(renderErrorPage("Search input too long", 400), 400);
   const requestedKind = url.searchParams.get("f");
-  const kind: SearchKind = requestedKind === "top" || requestedKind === "media" ? requestedKind : "tweets";
+  const globalKind: SearchKind = requestedKind === "top" || requestedKind === "media"
+    || requestedKind === "users" || requestedKind === "user"
+    || requestedKind === "lists" || requestedKind === "list"
+    ? requestedKind === "user" ? "users" : requestedKind === "list" ? "lists" : requestedKind
+    : "tweets";
+  const kind: SearchKind = username && (globalKind === "users" || globalKind === "lists") ? "tweets" : globalKind;
   const cursor = url.searchParams.get("cursor") || undefined;
   const since = validDate(url.searchParams.get("since"));
   const until = validDate(url.searchParams.get("until"));
   const minLikes = validNumber(url.searchParams.get("min_faves"));
   const search = { query, kind, cursor, username, since, until, minLikes };
-  if (!query && !username && !since && !until && !minLikes) {
+  if (!query && ((kind === "users" || kind === "lists") || (!username && !since && !until && !minLikes))) {
     return html(renderSearchPage(search), 200);
   }
 
   try {
-    const result = await withCookieSession(env.NITTER_SESSIONS, async (session) => {
+    const result = await withCookieSession<SearchResults & { profile?: Profile; photos?: PhotoRailItem[] }>(env.NITTER_SESSIONS, async (session) => {
       const rawQuery = [
         username ? `from:${username}` : "",
         query,
@@ -35,6 +51,8 @@ export async function serveSearchPage(request: Request, env: Env, username?: str
         minLikes ? `min_faves:${minLikes}` : "",
       ].filter(Boolean).join(" ");
       if (!username) {
+        if (kind === "users") return await fetchUserSearch(query, session, cursor);
+        if (kind === "lists") return await fetchListSearch(query, session, cursor);
         return { timeline: await fetchSearchTimeline(rawQuery, kind, session, cursor) };
       }
       const fetchedProfile = await fetchProfile(username, session);
@@ -45,7 +63,7 @@ export async function serveSearchPage(request: Request, env: Env, username?: str
         return { timeline: { tweets: [] }, profile, photos: [] };
       }
       const timeline = filterSearchTimeline(
-        await fetchSearchTimeline(rawQuery, kind, session, cursor),
+        await fetchSearchTimeline(rawQuery, kind as TweetSearchKind, session, cursor),
         username,
       );
       let photos: ReturnType<typeof photoRail> = [];
@@ -62,7 +80,7 @@ export async function serveSearchPage(request: Request, env: Env, username?: str
       ? await fetchOptionalBasedIn(env.NITTER_SESSIONS, username ?? result.profile.username)
       : "";
     const profile = result.profile ? { ...result.profile, basedIn } : undefined;
-    return html(renderSearchPage(search, result.timeline, profile, result.photos), 200);
+    return html(renderSearchPage(search, result, profile, result.photos), 200);
   } catch (error) {
     const notFound = error instanceof ProfileNotFoundError;
     const status = notFound ? 404 : error instanceof XApiError ? 502 : 500;

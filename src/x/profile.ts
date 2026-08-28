@@ -27,7 +27,11 @@ export function parseProfile(value: unknown): Profile {
   const root = asRecord(value);
   const data = asRecord(root.data);
   const container = asOptionalRecord(data.userResult) ?? asOptionalRecord(data.user);
-  const result = asRecord(container?.result);
+  return parseProfileResult(container?.result);
+}
+
+export function parseProfileResult(value: unknown): Profile {
+  const result = asRecord(value);
   const verified = verifiedTypeOf(result);
 
   if (result.unavailable_reason === "Suspended" || result.reason === "Suspended") {
@@ -40,7 +44,7 @@ export function parseProfile(value: unknown): Profile {
   const legacy = asOptionalRecord(result.legacy);
   if (legacy && typeof legacy.screen_name === "string") {
     return {
-      id: stringValue(legacy.id_str),
+      id: stringValue(legacy.id_str) || stringValue(result.rest_id),
       username: stringValue(legacy.screen_name),
       name: stringValue(legacy.name),
       bio: stringValue(legacy.description),
