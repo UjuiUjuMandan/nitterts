@@ -3,9 +3,21 @@ import { renderSettingsPage } from "../render/settings";
 
 const MAX_BODY_BYTES = 8 * 1024;
 
-export function serveSettingsPage(request: Request): Response {
+// Cloudflare terminates TLS at its edge before the worker, so request.url can
+// arrive as http:// while the browser-originated Origin header is https://.
+// The edge overwrites x-forwarded-proto, so trusting it cannot be spoofed;
+// take the last element because overwrite-style proxies emit a single value
+// while append-style chains put the client-supplied value first.
+function effectiveRequestUrl(request: Request): URL {
   const url = new URL(request.url);
-  const returnTo = safeReturnTo(url.searchParams.get("referer"), request.url) ?? "/settings";
+  const forwarded = request.headers.get("x-forwarded-proto")?.split(",").pop()?.trim().toLowerCase();
+  if (forwarded === "https" || forwarded === "http") url.protocol = `${forwarded}:`;
+  return url;
+}
+
+export function serveSettingsPage(request: Request): Response {
+  const url = effectiveRequestUrl(request);
+  const returnTo = safeReturnTo(url.searchParams.get("referer"), url) ?? "/settings";
   return settingsHtml(renderSettingsPage(preferencesFromRequest(request), returnTo));
 }
 
@@ -27,8 +39,8 @@ export async function serveSavePreferences(request: Request): Promise<Response> 
     entries.push([key, value !== null]);
   }
   const preferences = Object.fromEntries(entries) as PagePreferences;
-  const returnTo = safeReturnTo(params.get("returnTo") ?? params.get("referer"), request.url) ?? "/settings";
-  return redirectWithCookie(request, returnTo, preferencesCookie(preferences, new URL(request.url).protocol === "https:"));
+  const returnTo = safeReturnTo(params.get("returnTo") ?? params.get("referer"), effectiveRequestUrl(request)) ?? "/settings";
+  return redirectWithCookie(request, returnTo, preferencesCookie(preferences, effectiveRequestUrl(request).protocol === "https:"));
 }
 
 export async function serveResetPreferences(request: Request): Promise<Response> {
@@ -40,12 +52,12 @@ export async function serveResetPreferences(request: Request): Promise<Response>
   for (const key of params.keys()) {
     if (!allowed.has(key) || params.getAll(key).length !== 1) return new Response("Invalid preference fields", { status: 400 });
   }
-  const returnTo = safeReturnTo(params.get("returnTo") ?? params.get("referer"), request.url) ?? "/settings";
-  return redirectWithCookie(request, returnTo, clearPreferencesCookie(new URL(request.url).protocol === "https:"));
+  const returnTo = safeReturnTo(params.get("returnTo") ?? params.get("referer"), effectiveRequestUrl(request)) ?? "/settings";
+  return redirectWithCookie(request, returnTo, clearPreferencesCookie(effectiveRequestUrl(request).protocol === "https:"));
 }
 
 function validateMutation(request: Request): Response | undefined {
-  const url = new URL(request.url);
+  const url = effectiveRequestUrl(request);
   if (request.headers.get("origin") !== url.origin || request.headers.get("sec-fetch-site") === "cross-site") {
     return new Response("Cross-site preference update rejected", { status: 403 });
   }
@@ -79,7 +91,7 @@ async function readForm(request: Request): Promise<URLSearchParams | Response> {
 }
 
 function redirectWithCookie(request: Request, returnTo: string, cookie: string): Response {
-  const requestUrl = new URL(request.url);
+  const requestUrl = effectiveRequestUrl(request);
   const target = new URL(returnTo, requestUrl);
   const location = target.origin === requestUrl.origin ? target.toString() : new URL("/settings", requestUrl).toString();
   return new Response(null, {
@@ -93,12 +105,11 @@ function redirectWithCookie(request: Request, returnTo: string, cookie: string):
   });
 }
 
-function safeReturnTo(value: string | null, requestUrl: string): string | undefined {
+function safeReturnTo(value: string | null, requestUrl: URL): string | undefined {
   if (!value || !value.startsWith("/") || value.startsWith("//")) return undefined;
   try {
-    const base = new URL(requestUrl);
-    const target = new URL(value, base);
-    return target.origin === base.origin ? `${target.pathname}${target.search}${target.hash}` : undefined;
+    const target = new URL(value, requestUrl);
+    return target.origin === requestUrl.origin ? `${target.pathname}${target.search}${target.hash}` : undefined;
   } catch {
     return undefined;
   }

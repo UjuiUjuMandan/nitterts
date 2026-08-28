@@ -91,6 +91,22 @@ describe("preferences", () => {
     }));
     expect(redirectAttack.headers.get("location")).toBe("https://nitter.test/settings");
 
+    const proxied = await serveSavePreferences(new Request("http://nitter.test/settings", {
+      method: "POST",
+      headers: { ...headers, origin: "https://nitter.test", "x-forwarded-proto": "http,HTTPS" },
+      body: "stickyNav=on&returnTo=%2Fsettings",
+    }));
+    expect(proxied.status).toBe(303);
+    expect(proxied.headers.get("location")).toBe("https://nitter.test/settings");
+    expect(proxied.headers.get("set-cookie")).toContain("; Secure");
+
+    const proxiedAttack = await serveSavePreferences(new Request("http://nitter.test/settings", {
+      method: "POST",
+      headers: { ...headers, origin: "https://evil.test", "x-forwarded-proto": "https" },
+      body: "stickyNav=on",
+    }));
+    expect(proxiedAttack.status).toBe(403);
+
     const oversized = await serveSavePreferences(new Request("https://nitter.test/settings", {
       method: "POST",
       headers,
