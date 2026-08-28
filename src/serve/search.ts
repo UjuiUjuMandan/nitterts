@@ -1,5 +1,6 @@
 import { renderErrorPage } from "../render/profile";
 import { renderSearchPage } from "../render/search";
+import { preferencesFromRequest } from "../preferences";
 import { fetchProfile, XApiError } from "../x/client";
 import { ProfileNotFoundError, type Profile } from "../x/profile";
 import { withCookieSession } from "../x/sessions";
@@ -18,6 +19,7 @@ import {
 import { fetchOptionalBasedIn } from "./account-info";
 
 export async function serveSearchPage(request: Request, env: Env, username?: string): Promise<Response> {
+  const preferences = preferencesFromRequest(request);
   if (username && !/^[A-Za-z0-9_]{1,15}$/.test(username)) {
     return html(renderErrorPage("Invalid username", 400), 400);
   }
@@ -37,7 +39,7 @@ export async function serveSearchPage(request: Request, env: Env, username?: str
   const minLikes = validNumber(url.searchParams.get("min_faves"));
   const search = { query, kind, cursor, username, since, until, minLikes };
   if (!query && ((kind === "users" || kind === "lists") || (!username && !since && !until && !minLikes))) {
-    return html(renderSearchPage(search), 200);
+    return html(renderSearchPage(search, undefined, undefined, [], preferences), 200);
   }
 
   try {
@@ -80,7 +82,7 @@ export async function serveSearchPage(request: Request, env: Env, username?: str
       ? await fetchOptionalBasedIn(env.NITTER_SESSIONS, username ?? result.profile.username)
       : "";
     const profile = result.profile ? { ...result.profile, basedIn } : undefined;
-    return html(renderSearchPage(search, result, profile, result.photos), 200);
+    return html(renderSearchPage(search, result, profile, result.photos, preferences), 200);
   } catch (error) {
     const notFound = error instanceof ProfileNotFoundError;
     const status = notFound ? 404 : error instanceof XApiError ? 502 : 500;
@@ -111,6 +113,8 @@ function html(body: string, status: number): Response {
       "content-security-policy": "default-src 'self'; img-src 'self' data:; style-src 'self'; form-action 'self'; frame-ancestors 'none'",
       "referrer-policy": "no-referrer",
       "x-content-type-options": "nosniff",
+      "cache-control": "private, no-store",
+      vary: "Cookie",
     },
   });
 }

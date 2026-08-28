@@ -1,14 +1,16 @@
 import type { Conversation } from "../x/conversation";
+import { bodyClass, DEFAULT_PREFERENCES, type PagePreferences } from "../preferences";
 import { escapeAttribute, escapeHtml, renderNavbar, renderTweet } from "./profile";
 
-export function renderStatusPage(conversation: Conversation): string {
+export function renderStatusPage(conversation: Conversation, preferences: PagePreferences = { ...DEFAULT_PREFERENCES }): string {
   const { tweet } = conversation;
   const description = tweet.text || `Post by @${tweet.author.username}`;
   const titleText = `${tweet.author.name}: "${truncate(tweet.text, 72)}"`;
-  const before = conversation.before.map((item) => renderTweet(item)).join("");
-  const after = conversation.after.map((item) => renderTweet(item)).join("");
+  const permalink = `/${encodeURIComponent(tweet.author.username)}/status/${encodeURIComponent(tweet.id)}`;
+  const before = conversation.before.map((item) => renderTweet(item, false, preferences)).join("");
+  const after = conversation.after.map((item) => renderTweet(item, false, preferences)).join("");
   const replies = conversation.replies
-    .map((thread) => `<section class="reply thread-line">${thread.map((item) => renderTweet(item)).join("")}</section>`)
+    .map((thread) => `<section class="reply thread-line">${thread.map((item) => renderTweet(item, false, preferences)).join("")}</section>`)
     .join("");
 
   return `<!doctype html>
@@ -23,16 +25,16 @@ export function renderStatusPage(conversation: Conversation): string {
   <link rel="stylesheet" href="/css/fontello.css">
   <link rel="stylesheet" href="/style.css">
 </head>
-<body>
-  ${renderNavbar()}
+<body${bodyClass(preferences)}>
+  ${renderNavbar("", permalink)}
   <div class="container">
     <main class="conversation">
       <section class="main-thread">
         ${before ? `<div class="before-tweet thread-line">${before}</div>` : ""}
-        <div class="main-tweet${after ? " thread-line" : ""}" id="m">${renderTweet(tweet, true)}</div>
+        <div class="main-tweet${after ? " thread-line" : ""}" id="m">${renderTweet(tweet, true, preferences)}</div>
         ${after ? `<div class="after-tweet thread-line">${after}</div>` : ""}
       </section>
-      ${replies ? `<div class="reply-sort"><span class="reply-sort-label">Replies</span><strong>Relevant</strong></div><section class="replies" id="r">${replies}</section>` : ""}
+      ${replies && !preferences.hideReplies ? `<div class="reply-sort"><span class="reply-sort-label">Replies</span><strong>Relevant</strong></div><section class="replies" id="r">${replies}</section>` : ""}
       <div class="top-ref"><div class="icon-container"><a class="icon-down" href="#m" title="Back to top"></a></div></div>
     </main>
   </div>

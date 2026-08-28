@@ -371,6 +371,7 @@ export function parseTimeline(value: unknown): Timeline {
     ["data", "user_result", "result", "timeline_response", "timeline", "instructions"],
     ["data", "search", "timeline_response", "timeline", "instructions"],
     ["data", "search_by_raw_query", "search_timeline", "timeline", "instructions"],
+    ["data", "list", "timeline_response", "timeline", "instructions"],
   ]);
   const timeline: Timeline = { tweets: [] };
   const seen = new Set<string>();

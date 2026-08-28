@@ -1,4 +1,5 @@
 import { mediaProxyUrl } from "../media";
+import { bodyClass, DEFAULT_PREFERENCES, type PagePreferences } from "../preferences";
 import type { Profile } from "../x/profile";
 import type { PhotoRailItem, ProfileTab, Timeline, Tweet, TweetLink, VerifiedType } from "../x/timeline";
 
@@ -13,13 +14,16 @@ export function renderProfilePage(
   timeline: Timeline,
   tab: ProfileTab = "tweets",
   photos: PhotoRailItem[] = [],
+  preferences: PagePreferences = { ...DEFAULT_PREFERENCES },
+  currentCursor?: string,
 ): string {
   const title = `${profile.name} (@${profile.username}) | nitter`;
   const base = `/${encodeURIComponent(profile.username)}`;
-  const tweets = [timeline.pinned, ...timeline.tweets]
+  const tweets = [preferences.hidePins ? undefined : timeline.pinned, ...timeline.tweets]
     .filter((tweet): tweet is Tweet => Boolean(tweet))
+    .filter((tweet) => !preferences.hidePins || (!tweet.pinned && tweet.id !== timeline.pinned?.id))
     .filter((tweet, index, all) => all.findIndex((item) => item.id === tweet.id) === index)
-    .map((tweet) => renderTweet(tweet))
+    .map((tweet) => renderTweet(tweet, false, preferences))
     .join("");
   const more = timeline.cursor
     ? `<div class="show-more"><a href="${base}${TAB_PATHS[tab]}?cursor=${encodeURIComponent(timeline.cursor)}">Load more</a></div>`
@@ -43,12 +47,12 @@ export function renderProfilePage(
   <link rel="stylesheet" href="/style.css">
   <link rel="alternate" type="application/rss+xml" href="/${encodeURIComponent(profile.username)}/rss" title="RSS feed">
 </head>
-<body>
-  ${renderNavbar(`/` + encodeURIComponent(profile.username))}
+<body${bodyClass(preferences)}>
+  ${renderNavbar(base, `${base}${TAB_PATHS[tab]}${currentCursor ? `?cursor=${encodeURIComponent(currentCursor)}` : ""}`)}
   <div class="container">
     <main class="profile-tabs">
-      ${profile.banner ? `<div class="profile-banner"><a href="${escapeAttribute(mediaProxyUrl(profile.banner))}" target="_blank" rel="noopener" aria-label="Open banner image"><img src="${escapeAttribute(mediaProxyUrl(profile.banner))}" alt=""></a></div>` : ""}
-      <aside class="profile-tab sticky">${renderProfileCard(profile)}${renderPhotoRail(profile, photos)}</aside>
+      ${profile.banner && !preferences.hideBanner ? `<div class="profile-banner"><a href="${escapeAttribute(mediaProxyUrl(profile.banner))}" target="_blank" rel="noopener" aria-label="Open banner image"><img src="${escapeAttribute(mediaProxyUrl(profile.banner))}" alt=""></a></div>` : ""}
+      <aside class="profile-tab${preferences.stickyProfile ? " sticky" : ""}">${renderProfileCard(profile)}${renderPhotoRail(profile, photos)}</aside>
       <section class="timeline-container">
         <ul class="tab">
           <li class="tab-item${tab === "tweets" ? " active" : ""}"><a href="${base}">Tweets</a></li>
@@ -69,9 +73,10 @@ export function renderErrorPage(message: string, status: number): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${status} | nitter</title><link rel="stylesheet" href="/css/fontello.css"><link rel="stylesheet" href="/style.css"></head><body>${renderNavbar()}<div class="container"><main class="panel-container"><section class="error-panel"><h1>${status}</h1><p>${escapeHtml(message)}</p></section></main></div></body></html>`;
 }
 
-export function renderNavbar(rss = ""): string {
+export function renderNavbar(rss = "", currentPath = ""): string {
   const rssLink = rss ? `<a class="icon-rss" title="RSS Feed" href="${escapeAttribute(rss)}/rss"></a>` : "";
-  return `<nav><div class="inner-nav"><div class="nav-item"><a class="site-name" href="/">nitter</a></div><a href="/"><img class="site-logo" src="/logo.png" alt="Logo"></a><div class="nav-item right"><a class="icon-search" title="Search" href="/search"></a>${rssLink}</div></div></nav>`;
+  const settings = currentPath ? `/settings?referer=${encodeURIComponent(currentPath)}` : "/settings";
+  return `<nav><div class="inner-nav"><div class="nav-item"><a class="site-name" href="/">nitter</a></div><a href="/"><img class="site-logo" src="/logo.png" alt="Logo"></a><div class="nav-item right"><a class="icon-search" title="Search" href="/search"></a>${rssLink}<a class="icon-cog" title="Preferences" href="${escapeAttribute(settings)}"></a></div></div></nav>`;
 }
 
 export function renderProfileCard(profile: Profile): string {
@@ -118,6 +123,20 @@ export function renderPhotoRail(profile: Profile, photos: PhotoRailItem[]): stri
   </section>`;
 }
 
+export function renderUserResult(profile: Profile, preferences: PagePreferences = { ...DEFAULT_PREFERENCES }): string {
+  const href = `/${encodeURIComponent(profile.username)}`;
+  const avatar = profile.avatar
+    ? `<a class="tweet-avatar" href="${href}"><img class="avatar${preferences.squareAvatars ? "" : " round"}" src="${escapeAttribute(mediaProxyUrl(profile.avatar))}" alt="" loading="lazy"></a>`
+    : "";
+  return `<article class="timeline-item" data-username="${escapeAttribute(profile.username)}">
+    <a class="tweet-link" href="${href}" aria-label="View @${escapeAttribute(profile.username)} profile"></a>
+    <div class="tweet-body profile-result">
+      <div class="tweet-header">${avatar}<div class="tweet-name-row"><div class="fullname-and-username"><a class="fullname" href="${href}">${escapeHtml(profile.name)}</a>${verifiedBadge(profile.verifiedType)}</div></div><a class="username" href="${href}">@${escapeHtml(profile.username)}</a></div>
+      ${profile.bio ? `<div class="tweet-content media-body" dir="auto">${linkify(profile.bio, profile.bioLinks)}</div>` : ""}
+    </div>
+  </article>`;
+}
+
 function thumbUrl(url: string): string {
   try {
     const parsed = new URL(url);
@@ -131,15 +150,15 @@ function thumbUrl(url: string): string {
   return /:(thumb|small|medium|large)$/.test(url) ? url : `${url}:thumb`;
 }
 
-export function renderTweet(source: Tweet, main = false): string {
+export function renderTweet(source: Tweet, main = false, preferences: PagePreferences = { ...DEFAULT_PREFERENCES }): string {
   const tweet = source.retweet ?? source;
   const context = source.retweet
     ? `<div class="retweet-header"><span><span class="icon-retweet"></span> ${escapeHtml(source.author.name)} retweeted</span></div>`
     : source.pinned
       ? '<div class="pinned"><span><span class="icon-pin"></span> Pinned Tweet</span></div>'
       : "";
-  const media = renderMedia(tweet);
-  const quote = tweet.quote ? renderQuote(tweet.quote) : "";
+  const media = renderMedia(tweet, preferences);
+  const quote = tweet.quote ? renderQuote(tweet.quote, preferences) : "";
 
   const permalink = `/${encodeURIComponent(tweet.author.username)}/status/${encodeURIComponent(tweet.id)}`;
   return `<article class="timeline-item tweet${main ? " main-tweet-item" : ""}">
@@ -147,7 +166,7 @@ export function renderTweet(source: Tweet, main = false): string {
     <div class="tweet-body">
       ${context}
       <div class="tweet-header">
-        ${tweet.author.avatar ? `<a class="tweet-avatar" href="/${encodeURIComponent(tweet.author.username)}" aria-label="View @${escapeAttribute(tweet.author.username)} profile"><img class="avatar round" src="${escapeAttribute(mediaProxyUrl(tweet.author.avatar))}" alt=""></a>` : ""}
+        ${tweet.author.avatar ? `<a class="tweet-avatar" href="/${encodeURIComponent(tweet.author.username)}" aria-label="View @${escapeAttribute(tweet.author.username)} profile"><img class="avatar${preferences.squareAvatars ? "" : " round"}" src="${escapeAttribute(mediaProxyUrl(tweet.author.avatar))}" alt=""></a>` : ""}
         <div class="tweet-name-row">
           <div class="fullname-and-username"><a class="fullname" href="/${encodeURIComponent(tweet.author.username)}">${escapeHtml(tweet.author.name)}</a>${verifiedBadge(tweet.author.verifiedType)}<a class="username" href="/${encodeURIComponent(tweet.author.username)}">@${escapeHtml(tweet.author.username)}</a></div>
           <span class="tweet-date"><a href="${permalink}" title="${escapeAttribute(formatFullDate(tweet.createdAt))}">${escapeHtml(formatDate(tweet.createdAt))}</a></span>
@@ -158,7 +177,7 @@ export function renderTweet(source: Tweet, main = false): string {
       ${media}
       ${quote}
       ${main ? `<p class="tweet-published">${escapeHtml(formatFullDate(tweet.createdAt))}</p>` : ""}
-      <div class="tweet-stats"><span class="tweet-stat"><div class="icon-container"><span class="icon-comment"></span> ${formatNumber(tweet.replies)}</div></span><span class="tweet-stat"><div class="icon-container"><span class="icon-retweet"></span> ${formatNumber(tweet.retweets)}</div></span><span class="tweet-stat"><div class="icon-container"><span class="icon-heart"></span> ${formatNumber(tweet.likes)}</div></span>${tweet.views ? `<span class="tweet-stat"><div class="icon-container"><span class="icon-views"></span> ${formatNumber(tweet.views)}</div></span>` : ""}</div>
+      ${preferences.hideTweetStats ? "" : `<div class="tweet-stats"><span class="tweet-stat"><div class="icon-container"><span class="icon-comment"></span> ${formatNumber(tweet.replies)}</div></span><span class="tweet-stat"><div class="icon-container"><span class="icon-retweet"></span> ${formatNumber(tweet.retweets)}</div></span><span class="tweet-stat"><div class="icon-container"><span class="icon-heart"></span> ${formatNumber(tweet.likes)}</div></span>${tweet.views ? `<span class="tweet-stat"><div class="icon-container"><span class="icon-views"></span> ${formatNumber(tweet.views)}</div></span>` : ""}</div>`}
     </div>
   </article>`;
 }
@@ -171,24 +190,35 @@ function formatFullDate(value: string): string {
   return `${month} ${date.getUTCDate()}, ${date.getUTCFullYear()} · ${time} UTC`;
 }
 
-function renderMedia(tweet: Tweet): string {
+function renderMedia(tweet: Tweet, preferences: PagePreferences): string {
   if (!tweet.media.length) return "";
   const items = tweet.media
     .map((item) => {
       const image = item.kind === "photo" ? item.url : item.preview;
       if (!image) return "";
-      const badge = item.kind === "photo" ? "" : `<span class="media-badge">${item.kind === "gif" ? "GIF" : "VIDEO"}</span>`;
-      return `<a class="attachment still-image" href="${escapeAttribute(mediaProxyUrl(item.url || image))}" target="_blank" rel="noopener"><img loading="lazy" src="${escapeAttribute(mediaProxyUrl(image))}" alt="${escapeAttribute(item.alt)}">${badge}</a>`;
+      if (item.kind === "photo") {
+        return `<a class="attachment still-image" href="${escapeAttribute(mediaProxyUrl(item.url))}" target="_blank" rel="noopener"><img loading="lazy" src="${escapeAttribute(mediaProxyUrl(image))}" alt="${escapeAttribute(item.alt)}"></a>`;
+      }
+      if (item.url && preferences.mp4Playback) {
+        const playback = item.kind === "gif"
+          ? preferences.autoplayGifs ? " autoplay muted loop" : " controls muted loop"
+          : ` controls${preferences.muteVideos ? " muted" : ""}`;
+        return `<div class="attachment video-container"><video${playback} playsinline preload="metadata" poster="${escapeAttribute(mediaProxyUrl(image))}" aria-label="${escapeAttribute(item.alt || (item.kind === "gif" ? "GIF" : "Video"))}"><source src="${escapeAttribute(mediaProxyUrl(item.url))}" type="video/mp4"></video></div>`;
+      }
+      const fallback = `<img loading="lazy" src="${escapeAttribute(mediaProxyUrl(image))}" alt="${escapeAttribute(item.alt)}"><span class="media-badge">${item.kind === "gif" ? "GIF" : "VIDEO"}</span>`;
+      return item.url
+        ? `<a class="attachment still-image" href="${escapeAttribute(mediaProxyUrl(item.url))}" target="_blank" rel="noopener">${fallback}</a>`
+        : `<div class="attachment still-image">${fallback}</div>`;
     })
     .filter(Boolean)
     .join("");
   return items ? `<div class="attachments count-${Math.min(tweet.media.length, 4)}">${items}</div>` : "";
 }
 
-function renderQuote(tweet: Tweet): string {
+function renderQuote(tweet: Tweet, preferences: PagePreferences): string {
   const permalink = `/${encodeURIComponent(tweet.author.username)}/status/${encodeURIComponent(tweet.id)}`;
-  const media = renderMedia(tweet);
-  const avatar = tweet.author.avatar ? `<img class="avatar round mini" src="${escapeAttribute(mediaProxyUrl(tweet.author.avatar))}" alt="" loading="lazy">` : "";
+  const media = renderMedia(tweet, preferences);
+  const avatar = tweet.author.avatar ? `<img class="avatar${preferences.squareAvatars ? "" : " round"} mini" src="${escapeAttribute(mediaProxyUrl(tweet.author.avatar))}" alt="" loading="lazy">` : "";
   return `<blockquote class="quote quote-big"><a class="quote-link" href="${permalink}" aria-label="View quoted post"></a><div class="tweet-name-row"><div class="fullname-and-username">${avatar}<a class="fullname" href="/${encodeURIComponent(tweet.author.username)}">${escapeHtml(tweet.author.name)}</a>${verifiedBadge(tweet.author.verifiedType)}<a class="username" href="/${encodeURIComponent(tweet.author.username)}">@${escapeHtml(tweet.author.username)}</a></div><span class="tweet-date"><a href="${permalink}" title="${escapeAttribute(formatFullDate(tweet.createdAt))}">${escapeHtml(formatDate(tweet.createdAt))}</a></span></div><div class="quote-text" dir="auto">${linkify(tweet.text, tweet.links)}</div>${media ? `<div class="quote-media-container">${media}</div>` : ""}</blockquote>`;
 }
 
@@ -196,7 +226,7 @@ function renderStat(label: string, value: number): string {
   return `<li><span class="profile-stat-header">${label}</span><span class="profile-stat-num">${formatNumber(value)}</span></li>`;
 }
 
-export function verifiedBadge(type: VerifiedType): string {
+function verifiedBadge(type: VerifiedType): string {
   if (type === "none") return "";
   const title = type === "business" ? "Verified business account" : type === "government" ? "Verified government account" : "Verified blue account";
   return `<div class="verified-icon ${type}" title="${title}"><div class="icon-container"><span class="icon-circle verified-icon-circle" title="${title}"></span></div><div class="icon-container"><span class="icon-ok verified-icon-check" title="${title}"></span></div></div>`;
@@ -206,7 +236,7 @@ function formatText(value: string): string {
   return escapeHtml(value).replace(/\n/g, "<br>");
 }
 
-export function linkify(text: string, links: TweetLink[]): string {
+function linkify(text: string, links: TweetLink[]): string {
   if (!links.length) return formatText(text);
   const units = [...text];
   const ordered = [...links]

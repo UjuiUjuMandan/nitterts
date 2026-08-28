@@ -1,10 +1,12 @@
 import { renderErrorPage } from "../../../src/render/profile";
 import { renderStatusPage } from "../../../src/render/status";
+import { preferencesFromRequest } from "../../../src/preferences";
 import { fetchConversation, TweetNotFoundError } from "../../../src/x/conversation";
 import { XApiError } from "../../../src/x/client";
 import { withCookieSession } from "../../../src/x/sessions";
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
+  const preferences = preferencesFromRequest(context.request);
   const username = context.params.username;
   const id = context.params.id;
   if (
@@ -20,7 +22,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     const conversation = await withCookieSession(context.env.NITTER_SESSIONS, (session) =>
       fetchConversation(id, session),
     );
-    return html(renderStatusPage(conversation), 200);
+    return html(renderStatusPage(conversation, preferences), 200);
   } catch (error) {
     const notFound = error instanceof TweetNotFoundError;
     const status = notFound ? 404 : error instanceof XApiError ? 502 : 500;
@@ -45,6 +47,8 @@ function html(body: string, status: number): Response {
       "content-security-policy": "default-src 'self'; img-src 'self' data:; style-src 'self'; form-action 'self'; frame-ancestors 'none'",
       "referrer-policy": "no-referrer",
       "x-content-type-options": "nosniff",
+      "cache-control": "private, no-store",
+      vary: "Cookie",
     },
   });
 }

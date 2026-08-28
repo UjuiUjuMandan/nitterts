@@ -247,7 +247,7 @@ describe("search", () => {
     expect(result.cursor).toBe("lists-next");
 
     const html = renderSearchPage({ query: "nim", kind: "lists" }, result);
-    expect(html).not.toContain('href="/i/lists/99"');
+    expect(html).toContain('href="/i/lists/99"');
     expect(html).toContain("Nim &lt;News&gt;");
     expect(html).toContain("1,234 members");
     expect(html).toContain('href="/alice">@alice</a>');

@@ -1,11 +1,13 @@
 import { renderAboutPage } from "../../src/render/about";
 import { renderErrorPage } from "../../src/render/profile";
+import { preferencesFromRequest } from "../../src/preferences";
 import { fetchOptionalBasedIn } from "../../src/serve/account-info";
 import { fetchProfile, XApiError } from "../../src/x/client";
 import { ProfileNotFoundError } from "../../src/x/profile";
 import { withCookieSession } from "../../src/x/sessions";
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
+  const preferences = preferencesFromRequest(context.request);
   const username = context.params.username;
   if (typeof username !== "string" || !/^[A-Za-z0-9_]{1,15}$/.test(username)) {
     return html(renderErrorPage("Invalid username", 400), 400);
@@ -16,7 +18,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       return { ...value, username: value.username || username, name: value.name || username };
     });
     const basedIn = profile.suspended ? "" : await fetchOptionalBasedIn(context.env.NITTER_SESSIONS, username);
-    return html(renderAboutPage({ ...profile, basedIn }), 200);
+    return html(renderAboutPage({ ...profile, basedIn }, preferences), 200);
   } catch (error) {
     const notFound = error instanceof ProfileNotFoundError;
     const status = notFound ? 404 : error instanceof XApiError ? 502 : 500;
@@ -33,6 +35,8 @@ function html(body: string, status: number): Response {
       "content-security-policy": "default-src 'self'; img-src 'self' data:; style-src 'self'; form-action 'self'; frame-ancestors 'none'",
       "referrer-policy": "no-referrer",
       "x-content-type-options": "nosniff",
+      "cache-control": "private, no-store",
+      vary: "Cookie",
     },
   });
 }

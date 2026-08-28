@@ -1,4 +1,5 @@
 import { renderErrorPage, renderProfilePage } from "../render/profile";
+import { preferencesFromRequest } from "../preferences";
 import { fetchProfile, XApiError } from "../x/client";
 import { ProfileNotFoundError } from "../x/profile";
 import { withCookieSession } from "../x/sessions";
@@ -11,6 +12,7 @@ export async function serveProfilePage(
   username: string,
   tab: ProfileTab,
 ): Promise<Response> {
+  const preferences = preferencesFromRequest(request);
   if (!/^[A-Za-z0-9_]{1,15}$/.test(username)) {
     return html(renderErrorPage("Invalid username", 400), 400);
   }
@@ -46,7 +48,7 @@ export async function serveProfilePage(
       },
     );
     const basedIn = profile.suspended ? "" : await fetchOptionalBasedIn(env.NITTER_SESSIONS, username);
-    return html(renderProfilePage({ ...profile, basedIn }, timeline, tab, photos), 200);
+    return html(renderProfilePage({ ...profile, basedIn }, timeline, tab, photos, preferences, cursor), 200);
   } catch (error) {
     const notFound = error instanceof ProfileNotFoundError;
     const status = notFound ? 404 : error instanceof XApiError ? 502 : 500;
@@ -71,6 +73,8 @@ function html(body: string, status: number): Response {
       "content-security-policy": "default-src 'self'; img-src 'self' data:; style-src 'self'; form-action 'self'; frame-ancestors 'none'",
       "referrer-policy": "no-referrer",
       "x-content-type-options": "nosniff",
+      "cache-control": "private, no-store",
+      vary: "Cookie",
     },
   });
 }

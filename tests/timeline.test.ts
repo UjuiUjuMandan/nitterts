@@ -360,4 +360,55 @@ describe("parseTimeline", () => {
       media: [{ kind: "photo", url: "https://pbs.twimg.com/media/test.jpg" }],
     });
   });
+
+  it("selects MP4 variants and renders inline video and GIF playback", () => {
+    const author = {
+      rest_id: "1",
+      core: { screen_name: "alice", name: "Alice" },
+      avatar: { image_url: "https://pbs.twimg.com/alice_normal.jpg" },
+    };
+    const video = {
+      __typename: "Tweet",
+      rest_id: "400",
+      legacy: { full_text: "video", created_at: "Wed Aug 26 12:00:00 +0000 2026", entities: {} },
+      core: { user_results: { result: author } },
+      media_entities: [{ media_results: { result: { media_info: {
+        __typename: "ApiVideo",
+        preview_image: { original_img_url: "https://pbs.twimg.com/video.jpg" },
+        alt_text: "demo video",
+        variants: [
+          { content_type: "application/x-mpegURL", url: "https://video.twimg.com/master.m3u8" },
+          { content_type: "video/mp4", bitrate: 256000, url: "https://video.twimg.com/low.mp4" },
+          { content_type: "video/mp4", bitrate: 2176000, url: "https://video.twimg.com/high.mp4" },
+        ],
+      } } } }],
+    };
+    const gif = {
+      __typename: "Tweet",
+      rest_id: "401",
+      legacy: {
+        full_text: "gif",
+        created_at: "Wed Aug 26 12:00:00 +0000 2026",
+        entities: {},
+        extended_entities: { media: [{
+          type: "animated_gif",
+          media_url_https: "https://pbs.twimg.com/gif.jpg",
+          video_info: { variants: [{ content_type: "video/mp4", bitrate: 0, url: "https://video.twimg.com/gif.mp4" }] },
+        }] },
+      },
+      core: { user_results: { result: author } },
+    };
+    const timeline = parseTimeline({ data: { search: { timeline_response: { timeline: { instructions: [{ entries: [
+      { entryId: "tweet-400", content: { itemContent: { tweet_results: { result: video } } } },
+      { entryId: "tweet-401", content: { itemContent: { tweet_results: { result: gif } } } },
+    ] }] } } } } });
+    expect(timeline.tweets[0]?.media[0]).toMatchObject({ kind: "video", url: "https://video.twimg.com/high.mp4", preview: "https://pbs.twimg.com/video.jpg" });
+    expect(timeline.tweets[1]?.media[0]).toMatchObject({ kind: "gif", url: "https://video.twimg.com/gif.mp4" });
+    const videoHtml = renderTweet(timeline.tweets[0]!);
+    const gifHtml = renderTweet(timeline.tweets[1]!);
+    expect(videoHtml).toContain("<video controls playsinline");
+    expect(videoHtml).toContain("video.twimg.com%2Fhigh.mp4");
+    expect(videoHtml).not.toContain("master.m3u8");
+    expect(gifHtml).toContain("<video autoplay muted loop playsinline");
+  });
 });

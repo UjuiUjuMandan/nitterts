@@ -1,8 +1,9 @@
 import { mediaProxyUrl } from "../media";
+import { bodyClass, DEFAULT_PREFERENCES, type PagePreferences } from "../preferences";
 import type { Profile } from "../x/profile";
 import { escapeAttribute, escapeHtml, renderNavbar } from "./profile";
 
-export function renderAboutPage(profile: Profile): string {
+export function renderAboutPage(profile: Profile, preferences: PagePreferences = { ...DEFAULT_PREFERENCES }): string {
   const base = `/${encodeURIComponent(profile.username)}`;
   const joined = monthYear(profile.joinedAt);
   return `<!doctype html>
@@ -16,12 +17,12 @@ export function renderAboutPage(profile: Profile): string {
   <link rel="stylesheet" href="/css/fontello.css">
   <link rel="stylesheet" href="/style.css">
 </head>
-<body>
-  ${renderNavbar(base)}
+<body${bodyClass(preferences)}>
+  ${renderNavbar(base, `${base}/about`)}
   <div class="container">
     <main class="about-account">
       <header class="about-account-header">
-        ${profile.avatar ? `<a class="about-account-avatar" href="${base}"><img src="${escapeAttribute(mediaProxyUrl(profile.avatar))}" alt=""></a>` : ""}
+        ${profile.avatar ? `<a class="about-account-avatar" href="${base}"><img class="avatar${preferences.squareAvatars ? "" : " round"}" src="${escapeAttribute(mediaProxyUrl(profile.avatar))}" alt=""></a>` : ""}
         <div class="about-account-name"><a class="profile-card-fullname" href="${base}">${escapeHtml(profile.name)}</a><a class="profile-card-username" href="${base}">@${escapeHtml(profile.username)}</a></div>
       </header>
       <div class="about-account-body">

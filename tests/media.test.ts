@@ -37,4 +37,27 @@ describe("isAllowedMediaUrl", () => {
     expect(upstreamError.status).toBe(404);
     expect(await upstreamError.text()).toBe("Media request failed");
   });
+
+  it("forwards byte ranges needed for video seeking", async () => {
+    const request = new Request(
+      "https://nitter.example/media?url=https%3A%2F%2Fvideo.twimg.com%2Fclip.mp4",
+      { headers: { range: "bytes=100-199" } },
+    );
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(new Uint8Array([1, 2, 3]), {
+        status: 206,
+        headers: {
+          "accept-ranges": "bytes",
+          "content-range": "bytes 100-102/1000",
+          "content-type": "video/mp4",
+        },
+      }),
+    );
+    const response = await onRequestGet({ request } as never);
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toBeInstanceOf(Headers);
+    expect((fetchMock.mock.calls[0]?.[1]?.headers as Headers).get("range")).toBe("bytes=100-199");
+    expect(response.status).toBe(206);
+    expect(response.headers.get("content-range")).toBe("bytes 100-102/1000");
+    expect(response.headers.get("content-type")).toBe("video/mp4");
+  });
 });

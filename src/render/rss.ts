@@ -1,4 +1,5 @@
 import type { Profile } from "../x/profile";
+import type { ListDetail } from "../x/list";
 import type { Timeline, Tweet } from "../x/timeline";
 
 const GUID_CUTOFF = 2000000000000000000n;
@@ -29,6 +30,23 @@ ${profile.avatar ? `    <image>
       <height>128</height>
     </image>
 ` : ""}${items}  </channel>
+</rss>`;
+}
+
+export function renderListRss(list: ListDetail, timeline: Timeline, origin: string): string {
+  const path = `/i/lists/${encodeURIComponent(list.id)}`;
+  const title = xmlEscape(`${list.name} / @${list.owner.username}`);
+  const items = timeline.tweets.map((tweet) => renderRssTweet(tweet, origin)).join("");
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0">
+  <channel>
+    <atom:link href="${xmlEscape(`${origin}${path}/rss`)}" rel="self" type="application/rss+xml" />
+    <title>${title}</title>
+    <link>${xmlEscape(`${origin}${path}`)}</link>
+    <description>${xmlEscape(`${list.name} by @${list.owner.username}`)}</description>
+    <language>en-us</language>
+    <ttl>40</ttl>
+${items}  </channel>
 </rss>`;
 }
 

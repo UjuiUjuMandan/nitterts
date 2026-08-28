@@ -70,6 +70,10 @@ nav {
   z-index: 1000;
 }
 
+.non-sticky-nav nav {
+  position: static;
+}
+
 .inner-nav {
   display: flex;
   align-items: center;
@@ -673,6 +677,26 @@ nav {
   background: #101010;
 }
 
+.attachment video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-height: 530px;
+  background: #101010;
+  object-fit: contain;
+  pointer-events: all;
+}
+
+.count-1 .attachment video {
+  height: auto;
+  max-height: 530px;
+}
+
+.quote .video-container {
+  position: relative;
+  z-index: 2;
+}
+
 .count-1 .attachment img {
   height: auto;
   max-height: 530px;
@@ -760,6 +784,32 @@ nav {
   background: var(--bg-panel);
   text-align: center;
   margin-bottom: 4px;
+}
+
+.timeline-banner {
+  margin-bottom: 4px;
+  background: var(--bg-panel);
+}
+
+.timeline-banner a,
+.timeline-banner img {
+  display: block;
+  width: 100%;
+}
+
+.timeline-banner img {
+  max-height: 300px;
+  object-fit: cover;
+}
+
+.list-header a {
+  color: var(--fg-dark);
+}
+
+.timeline-description {
+  margin-top: 4px;
+  color: var(--fg-faded);
+  white-space: pre-wrap;
 }
 
 .timeline-message h2 {
@@ -984,8 +1034,7 @@ nav {
   pointer-events: none;
 }
 
-.list-result-body a,
-.list-result-description {
+.list-result-body a {
   pointer-events: all;
 }
 
@@ -1035,6 +1084,61 @@ nav {
   background: var(--bg-panel);
 }
 
+.preferences-page {
+  width: min(560px, calc(100% - 20px));
+  margin: 12px auto;
+}
+
+.preferences-panel {
+  padding: 18px;
+  background: var(--bg-panel);
+}
+
+.preferences-panel h1 {
+  margin: 0 0 14px;
+  color: var(--accent);
+  font-size: 22px;
+}
+
+.preference-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border-grey);
+  cursor: pointer;
+}
+
+.preference-row input {
+  margin-top: 3px;
+}
+
+.preference-row strong,
+.preference-row small {
+  display: block;
+}
+
+.preference-row small {
+  margin-top: 2px;
+  color: var(--fg-faded);
+}
+
+.preferences-save,
+.preferences-reset {
+  margin-top: 14px;
+  padding: 7px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  background: var(--bg-elements);
+  color: var(--fg-color);
+  cursor: pointer;
+}
+
+.preferences-reset {
+  border-color: var(--border-grey);
+  color: var(--fg-faded);
+}
+
 .about-account-header {
   display: flex;
   align-items: center;
@@ -1050,6 +1154,10 @@ nav {
   height: 56px;
   border-radius: 50%;
   object-fit: cover;
+}
+
+.about-account-avatar img.avatar:not(.round) {
+  border-radius: 0;
 }
 
 .about-account-name {
