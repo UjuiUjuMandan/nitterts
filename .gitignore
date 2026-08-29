@@ -4,3 +4,7 @@ node_modules/
 .env*
 sessions.jsonl
 worker-configuration.d.ts
+.sass-cache/
+public/css/fontello.css
+public/css/style.css
+public/css/themes/

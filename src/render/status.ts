@@ -8,9 +8,9 @@ export function renderStatusPage(conversation: Conversation, preferences: PagePr
   const titleText = `${tweet.author.name}: "${truncate(tweet.text, 72)}"`;
   const permalink = `/${encodeURIComponent(tweet.author.username)}/status/${encodeURIComponent(tweet.id)}`;
   const before = conversation.before.map((item) => renderTweet(item, false, preferences)).join("");
-  const after = conversation.after.map((item) => renderTweet(item, false, preferences)).join("");
+  const after = conversation.after.map((item, index, items) => renderTweet(item, false, preferences, index === items.length - 1)).join("");
   const replies = conversation.replies
-    .map((thread) => `<section class="reply thread-line">${thread.map((item) => renderTweet(item, false, preferences)).join("")}</section>`)
+    .map((thread) => `<section class="reply thread-line">${thread.map((item, index) => renderTweet(item, false, preferences, index === thread.length - 1)).join("")}</section>`)
     .join("");
 
   return `<!doctype html>
@@ -23,7 +23,7 @@ export function renderStatusPage(conversation: Conversation, preferences: PagePr
   <title>${escapeHtml(titleText)} | nitter</title>
   <link rel="icon" href="/favicon.ico">
   <link rel="stylesheet" href="/css/fontello.css">
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/css/style.css">
 </head>
 <body${bodyClass(preferences)}>
   ${renderNavbar("", permalink)}

@@ -194,19 +194,24 @@ describe("preferences", () => {
     expect(settingsHtml).toContain('<option value="Grid" selected>Grid</option>');
 
     const html = renderProfilePage(profile, { tweets: [tweet("2"), tweet("1")], pinned: tweet("1", true) }, "tweets", [], preferences);
-    expect(html).toContain('<body class="non-sticky-nav">');
+    expect(html).toContain("<body>");
     expect(html).not.toContain('class="profile-banner"');
     expect(html).not.toContain('profile-tab sticky');
     expect(html).not.toContain("tweet 1");
     expect(html).not.toContain('class="tweet-stats"');
     expect(html).not.toContain('class="avatar round"');
-    expect(renderHomePage(preferences)).toContain('<body class="non-sticky-nav">');
+    expect(html).toContain('<div class="timeline-item tweet">');
+    expect(html).not.toContain('<article class="timeline-item');
+    expect(renderHomePage(preferences)).toContain("<body>");
+    expect(renderHomePage(DEFAULT_PREFERENCES)).toContain('<body class="fixed-nav">');
     expect(renderHomePage(preferences)).toContain('/settings?referer=%2F');
     expect(renderAboutPage(profile, preferences)).toContain('class="avatar"');
     expect(renderAboutPage(profile, preferences)).not.toContain('avatar round');
 
     const status = renderStatusPage({ tweet: tweet("2"), before: [], after: [], replies: [[tweet("3")]] }, preferences);
     expect(status).not.toContain('class="replies"');
+    const statusWithReplies = renderStatusPage({ tweet: tweet("2"), before: [], after: [], replies: [[tweet("3")]] }, { ...preferences, hideReplies: false });
+    expect(statusWithReplies).toContain('class="timeline-item tweet thread-last"');
 
     const videoTweet = { ...tweet("4"), media: [{ kind: "video" as const, url: "https://video.twimg.com/video.mp4", preview: "https://pbs.twimg.com/video.jpg", alt: "" }] };
     const disabledVideo = renderTweet(videoTweet, false, preferences);
@@ -214,6 +219,7 @@ describe("preferences", () => {
     expect(disabledVideo).toContain('href="/media?url=https%3A%2F%2Fvideo.twimg.com%2Fvideo.mp4"');
     const enabled = { ...preferences, mp4Playback: true, muteVideos: true };
     expect(renderTweet(videoTweet, false, enabled)).toContain("<video controls muted playsinline");
+    expect(renderTweet(videoTweet, false, enabled)).toContain('class="gallery-row mixed-row"');
 
     const paged = renderProfilePage(profile, { tweets: [] }, "tweets", [], preferences, "page cursor");
     expect(paged).toContain("referer=%2Falice%3Fcursor%3Dpage%2520cursor");

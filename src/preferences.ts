@@ -90,7 +90,7 @@ export function clearPreferencesCookie(secure: boolean): string {
 }
 
 export function bodyClass(preferences: PagePreferences): string {
-  return preferences.stickyNav ? "" : ' class="non-sticky-nav"';
+  return preferences.stickyNav ? ' class="fixed-nav"' : "";
 }
 
 function cookieHeader(value: string, secure: boolean, maxAge: number): string {

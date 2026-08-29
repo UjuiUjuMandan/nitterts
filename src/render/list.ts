@@ -31,7 +31,7 @@ export function renderListPage(
   <title>${escapeHtml(list.name)} | nitter</title>
   <link rel="icon" href="/favicon.ico">
   <link rel="stylesheet" href="/css/fontello.css">
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/css/style.css">
   <link rel="alternate" type="application/rss+xml" href="${base}/rss" title="RSS feed">
 </head>
 <body${bodyClass(preferences)}>

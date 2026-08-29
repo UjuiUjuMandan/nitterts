@@ -15,7 +15,7 @@ export function renderAboutPage(profile: Profile, preferences: PagePreferences =
   <title>About @${escapeHtml(profile.username)} | nitter</title>
   <link rel="icon" href="/favicon.ico">
   <link rel="stylesheet" href="/css/fontello.css">
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/css/style.css">
 </head>
 <body${bodyClass(preferences)}>
   ${renderNavbar(base, `${base}/about`)}

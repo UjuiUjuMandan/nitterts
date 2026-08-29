@@ -11,7 +11,7 @@ export function renderHomePage(preferences: PagePreferences): string {
   <title>nitter</title>
   <link rel="icon" href="/favicon.ico">
   <link rel="stylesheet" href="/css/fontello.css">
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/css/style.css">
 </head>
 <body${bodyClass(preferences)}>
   ${renderNavbar("", "/")}

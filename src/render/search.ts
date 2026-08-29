@@ -74,7 +74,7 @@ export function renderSearchPage(
   <title>${escapeHtml(title)}</title>
   <link rel="icon" href="/favicon.ico">
   <link rel="stylesheet" href="/css/fontello.css">
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/css/style.css">
 </head>
 <body${bodyClass(preferences)}>
   ${renderNavbar("", currentPath)}
@@ -151,7 +151,7 @@ function renderListResult(result: SearchList): string {
         return index === 0 && mentioned ? `<a class="facepile-link" href="/${encodeURIComponent(mentioned)}">${image}</a>` : image;
       }).join("")}${renderMentionedText(result.followersContext)}`
     : `${result.owner.avatar ? `<a class="facepile-link" href="/${encodeURIComponent(result.owner.username)}"><img class="list-facepile" src="${escapeAttribute(mediaProxyUrl(result.owner.avatar))}" alt="" loading="lazy"></a>` : ""}<a class="fullname" href="/${encodeURIComponent(result.owner.username)}">${escapeHtml(result.owner.name)}</a><a class="username" href="/${encodeURIComponent(result.owner.username)}">@${escapeHtml(result.owner.username)}</a>`;
-  return `<article class="timeline-item list-result">
+  return `<div class="timeline-item list-result">
     <a class="tweet-link" href="${href}" aria-label="View list"></a>
     <a class="list-result-banner" href="${href}">${result.banner ? `<img src="${escapeAttribute(mediaProxyUrl(result.banner))}" alt="" loading="lazy">` : ""}</a>
     <div class="list-result-body">
@@ -159,7 +159,7 @@ function renderListResult(result: SearchList): string {
       <div class="list-result-context">${context}</div>
       ${result.description ? `<div class="list-result-description">${escapeHtml(result.description)}</div>` : ""}
     </div>
-  </article>`;
+  </div>`;
 }
 
 function mentionedUsername(value: string): string {
