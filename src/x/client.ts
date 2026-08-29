@@ -1,5 +1,6 @@
 import type { CookieSession } from "../session";
 import { parseAccountInfo, parseProfile, type AccountInfo, type Profile } from "./profile";
+import { beginSessionRequest, endSessionRequest, recordApiStatus, recordLimitedSession } from "./rate-limit";
 import { fetchTidPair, generateTransactionId } from "./tid";
 
 const GRAPH_USER = "Gb-d6r0vxPOADdG62OEBpQ/UserByScreenName";
@@ -100,47 +101,54 @@ export async function fetchGraphql(
 
   const pair = await fetchTidPair();
   const transactionId = await generateTransactionId(path, pair);
-  const response = await fetch(url, {
-    redirect: "manual",
-    headers: {
-      accept: "*/*",
-      "accept-encoding": "gzip",
-      "accept-language": "en-US,en;q=0.9",
-      authorization: BEARER_TOKEN,
-      "content-type": "application/json",
-      cookie: `auth_token=${session.authToken}; ct0=${session.ct0}`,
-      origin: "https://x.com",
-      priority: "u=1, i",
-      referer: "https://x.com/",
-      "sec-ch-ua": '"Google Chrome";v="142", "Chromium";v="142", "Not A(Brand";v="24"',
-      "sec-ch-ua-mobile": "?0",
-      "sec-ch-ua-platform": '"Windows"',
-      "sec-fetch-dest": "empty",
-      "sec-fetch-mode": "cors",
-      "sec-fetch-site": "same-origin",
-      "user-agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-        "(KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
-      "x-client-transaction-id": transactionId,
-      "x-csrf-token": session.ct0,
-      "x-twitter-active-user": "yes",
-      "x-twitter-auth-type": "OAuth2Session",
-      "x-twitter-client-language": "en",
-    },
-  });
-
-  const body = await readTextLimited(response, MAX_RESPONSE_BYTES);
-  if (!response.ok) {
-    throw new XApiError(response.status, summarizeError(body));
-  }
-
-  let value: unknown;
+  beginSessionRequest(session.id);
   try {
-    value = JSON.parse(body);
-  } catch {
-    throw new Error("X returned a non-JSON GraphQL response");
+    const response = await fetch(url, {
+      redirect: "manual",
+      headers: {
+        accept: "*/*",
+        "accept-encoding": "gzip",
+        "accept-language": "en-US,en;q=0.9",
+        authorization: BEARER_TOKEN,
+        "content-type": "application/json",
+        cookie: `auth_token=${session.authToken}; ct0=${session.ct0}`,
+        origin: "https://x.com",
+        priority: "u=1, i",
+        referer: "https://x.com/",
+        "sec-ch-ua": '"Google Chrome";v="142", "Chromium";v="142", "Not A(Brand";v="24"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-origin",
+        "user-agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+          "(KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+        "x-client-transaction-id": transactionId,
+        "x-csrf-token": session.ct0,
+        "x-twitter-active-user": "yes",
+        "x-twitter-auth-type": "OAuth2Session",
+        "x-twitter-client-language": "en",
+      },
+    });
+
+    const body = await readTextLimited(response, MAX_RESPONSE_BYTES);
+    recordApiStatus(operation, session, response.headers);
+    if (!response.ok) {
+      if (response.status === 429) recordLimitedSession(session, response.headers);
+      throw new XApiError(response.status, summarizeError(body));
+    }
+
+    let value: unknown;
+    try {
+      value = JSON.parse(body);
+    } catch {
+      throw new Error("X returned a non-JSON GraphQL response");
+    }
+    return value;
+  } finally {
+    endSessionRequest(session.id);
   }
-  return value;
 }
 
 export class XApiError extends Error {
