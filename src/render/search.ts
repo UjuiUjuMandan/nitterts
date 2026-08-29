@@ -5,11 +5,13 @@ import type { PhotoRailItem, SearchKind, SearchList, SearchResults } from "../x/
 import {
   escapeAttribute,
   escapeHtml,
+  headScripts,
   renderNavbar,
   renderPhotoRail,
   renderProfileCard,
   renderTweet,
   renderUserResult,
+  themeLink,
 } from "./profile";
 
 export type SearchPage = {
@@ -54,13 +56,12 @@ export function renderSearchPage(
     ${profile ? renderProfileTabs(profile.username) : ""}
     <div class="timeline-header">${renderSearchForm(base, search)}</div>
     ${search.username ? "" : renderSearchTabs(search)}
-    <div class="timeline">${body}</div>
-    ${more}`;
+    <div class="timeline">${body}${more}<div class="timeline-footer"></div><div class="top-ref"><div class="icon-container"><a class="icon-down" href="#" title="Back to top"></a></div></div></div>`;
   const content = `<section class="timeline-container search-results">${contentBody}</section>`;
   const main = profile
     ? `<main class="profile-tabs">
         ${profile.banner && !preferences.hideBanner ? `<div class="profile-banner"><a href="${escapeAttribute(mediaProxyUrl(profile.banner))}" target="_blank" rel="noopener"><img src="${escapeAttribute(mediaProxyUrl(profile.banner))}" alt=""></a></div>` : ""}
-        <aside class="profile-tab${preferences.stickyProfile ? " sticky" : ""}">${renderProfileCard(profile)}${renderPhotoRail(profile, photos)}</aside>
+        <aside class="profile-tab${preferences.stickyProfile ? " sticky" : ""}">${renderProfileCard(profile, preferences)}${renderPhotoRail(profile, photos)}</aside>
         ${content}
       </main>`
     : `<main class="timeline-container search-results search-page">${contentBody}</main>`;
@@ -74,7 +75,7 @@ export function renderSearchPage(
   <title>${escapeHtml(title)}</title>
   <link rel="icon" href="/favicon.ico">
   <link rel="stylesheet" href="/css/fontello.css">
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/style.css">${themeLink(preferences)}${headScripts(preferences)}
 </head>
 <body${bodyClass(preferences)}>
   ${renderNavbar("", currentPath)}

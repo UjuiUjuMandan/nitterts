@@ -7,20 +7,43 @@ export const PREFERENCE_KEYS = [
   "hideReplies",
   "squareAvatars",
   "mp4Playback",
+  "hlsPlayback",
+  "proxyVideos",
   "muteVideos",
   "autoplayGifs",
   "compactGallery",
+  "bidiSupport",
+  "hideRelated",
+  "hideCommunityNotes",
+  "infiniteScroll",
 ] as const;
 
 export type PreferenceKey = typeof PREFERENCE_KEYS[number];
 export const MEDIA_VIEWS = ["timeline", "grid", "gallery"] as const;
 export const GALLERY_SIZES = ["small", "medium", "large"] as const;
+export const THEMES = [
+  "Nitter",
+  "Auto",
+  "Auto (Twitter)",
+  "Black",
+  "Dracula",
+  "Mastodon",
+  "Pleroma",
+  "Twitter",
+  "Twitter Dark",
+] as const;
+export const REPLACE_KEYS = ["replaceTwitter", "replaceYouTube", "replaceReddit"] as const;
+export const SELECT_KEYS = ["mediaView", "gallerySize", "theme"] as const;
 export type MediaView = typeof MEDIA_VIEWS[number];
 export type GallerySize = typeof GALLERY_SIZES[number];
+export type Theme = typeof THEMES[number];
+export type ReplaceKey = typeof REPLACE_KEYS[number];
+export type SelectKey = typeof SELECT_KEYS[number];
 export type PagePreferences = Record<PreferenceKey, boolean> & {
   mediaView: MediaView;
   gallerySize: GallerySize;
-};
+  theme: Theme;
+} & Record<ReplaceKey, string>;
 
 export const DEFAULT_PREFERENCES: Readonly<PagePreferences> = Object.freeze({
   stickyNav: true,
@@ -31,68 +54,147 @@ export const DEFAULT_PREFERENCES: Readonly<PagePreferences> = Object.freeze({
   hideReplies: false,
   squareAvatars: false,
   mp4Playback: true,
+  hlsPlayback: false,
+  proxyVideos: true,
   muteVideos: false,
   autoplayGifs: true,
   compactGallery: false,
+  bidiSupport: false,
+  hideRelated: true,
+  hideCommunityNotes: false,
+  infiniteScroll: false,
   mediaView: "grid",
   gallerySize: "medium",
+  theme: "Nitter",
+  replaceTwitter: "",
+  replaceYouTube: "",
+  replaceReddit: "",
 });
 
-export const PREFERENCES_COOKIE = "nitter_prefs";
+const PREFERENCE_NAMES = [...PREFERENCE_KEYS, ...SELECT_KEYS, ...REPLACE_KEYS] as const;
+const COOKIE_MAX_AGE = 31_536_000;
+
+export function themeSlug(theme: Theme): string {
+  return theme.toLowerCase().replace(/ /g, "_");
+}
 
 export function preferencesFromRequest(request: Request): PagePreferences {
-  const cookie = request.headers.get("cookie") ?? "";
-  for (const part of cookie.split(";")) {
+  const overrides = new Map<string, string>();
+  for (const part of (request.headers.get("cookie") ?? "").split(";")) {
     const separator = part.indexOf("=");
-    if (separator < 0 || part.slice(0, separator).trim() !== PREFERENCES_COOKIE) continue;
-    try {
-      return decodePreferences(decodeURIComponent(part.slice(separator + 1).trim()));
-    } catch {
-      return { ...DEFAULT_PREFERENCES };
+    if (separator < 0) continue;
+    const name = part.slice(0, separator).trim();
+    if ((PREFERENCE_NAMES as readonly string[]).includes(name)) {
+      try {
+        overrides.set(name, decodeURIComponent(part.slice(separator + 1).trim()));
+      } catch {
+        overrides.set(name, part.slice(separator + 1).trim());
+      }
     }
   }
-  return { ...DEFAULT_PREFERENCES };
-}
-
-export function encodePreferences(preferences: PagePreferences): string {
-  const mask = PREFERENCE_KEYS.reduce(
-    (value, key, index) => preferences[key] ? value | (1 << index) : value,
-    0,
-  );
-  const mediaView = { timeline: "t", grid: "g", gallery: "a" }[preferences.mediaView];
-  const gallerySize = { small: "s", medium: "m", large: "l" }[preferences.gallerySize];
-  return `v2.${mask.toString(36)}.${mediaView}.${gallerySize}`;
-}
-
-export function decodePreferences(value: string): PagePreferences {
-  const legacy = /^v1\.([0-9a-z]+)$/.exec(value);
-  const current = /^v2\.([0-9a-z]+)\.([tga])\.([sml])$/.exec(value);
-  const match = legacy ?? current;
-  if (!match) return { ...DEFAULT_PREFERENCES };
-  const mask = Number.parseInt(match[1] ?? "", 36);
-  const bitCount = legacy ? PREFERENCE_KEYS.length - 1 : PREFERENCE_KEYS.length;
-  if (!Number.isSafeInteger(mask) || mask < 0 || mask >= 1 << bitCount || mask.toString(36) !== match[1]) {
-    return { ...DEFAULT_PREFERENCES };
+  const params = new URL(request.url).searchParams;
+  const bookmark = params.get("prefs");
+  if (bookmark) {
+    addBookmarkOverrides(overrides, bookmark);
   }
-  const booleans = Object.fromEntries(PREFERENCE_KEYS.map((key, index) => [key, Boolean(mask & (1 << index))])) as Record<PreferenceKey, boolean>;
-  if (legacy) return { ...booleans, mediaView: DEFAULT_PREFERENCES.mediaView, gallerySize: DEFAULT_PREFERENCES.gallerySize };
-  const mediaView = ({ t: "timeline", g: "grid", a: "gallery" } as const)[current![2] as "t" | "g" | "a"];
-  const gallerySize = ({ s: "small", m: "medium", l: "large" } as const)[current![3] as "s" | "m" | "l"];
-  return { ...booleans, mediaView, gallerySize };
+  for (const name of PREFERENCE_NAMES) {
+    const value = params.get(name);
+    if (value !== null) overrides.set(name, value);
+  }
+  return applyOverrides(overrides);
 }
 
-export function preferencesCookie(preferences: PagePreferences, secure: boolean): string {
-  return cookieHeader(encodePreferences(preferences), secure, 31_536_000);
+export function preferencesFromBookmark(bookmark: string): PagePreferences {
+  const overrides = new Map<string, string>();
+  addBookmarkOverrides(overrides, bookmark);
+  return applyOverrides(overrides);
 }
 
-export function clearPreferencesCookie(secure: boolean): string {
-  return cookieHeader("", secure, 0);
+export function preferencesRedirect(request: Request): Response | undefined {
+  const url = new URL(request.url);
+  if (!url.searchParams.has("prefs")) return undefined;
+  const preferences = preferencesFromBookmark(url.searchParams.get("prefs") ?? "");
+  url.searchParams.delete("prefs");
+  const forwarded = request.headers.get("x-forwarded-proto")?.split(",").pop()?.trim().toLowerCase();
+  const secure = forwarded ? forwarded === "https" : url.protocol === "https:";
+  const headers = new Headers({ location: url.toString(), "cache-control": "no-store" });
+  for (const cookie of preferencesCookies(preferences, secure)) headers.append("set-cookie", cookie);
+  return new Response(null, { status: 303, headers });
+}
+
+function addBookmarkOverrides(overrides: Map<string, string>, bookmark: string): void {
+  for (const pair of bookmark.split(",")) {
+    const separator = pair.indexOf("=");
+    if (separator < 0) continue;
+    const name = pair.slice(0, separator).trim();
+    if ((PREFERENCE_NAMES as readonly string[]).includes(name)) {
+      overrides.set(name, pair.slice(separator + 1));
+    }
+  }
+}
+
+function applyOverrides(overrides: Map<string, string>): PagePreferences {
+  const preferences: PagePreferences = { ...DEFAULT_PREFERENCES };
+  for (const [name, raw] of overrides) {
+    if ((PREFERENCE_KEYS as readonly string[]).includes(name)) {
+      preferences[name as PreferenceKey] = raw === "on" || raw === "true" || raw === "1";
+    } else if (name === "mediaView") {
+      const match = MEDIA_VIEWS.find((view) => view === raw.toLowerCase());
+      if (match) preferences.mediaView = match;
+    } else if (name === "gallerySize") {
+      const match = GALLERY_SIZES.find((size) => size === raw.toLowerCase());
+      if (match) preferences.gallerySize = match;
+    } else if (name === "theme") {
+      const match = THEMES.find((theme) => theme.toLowerCase() === raw.trim().toLowerCase());
+      if (match) preferences.theme = match;
+    } else if ((REPLACE_KEYS as readonly string[]).includes(name)) {
+      preferences[name as ReplaceKey] = sanitizeReplace(raw);
+    }
+  }
+  return preferences;
+}
+
+export function sanitizeReplace(value: string): string {
+  return value.replace(/[\u0000-\u001f,]/g, "").trim().slice(0, 100);
+}
+
+function preferenceValue(preferences: PagePreferences, name: string): string {
+  if ((PREFERENCE_KEYS as readonly string[]).includes(name)) {
+    return preferences[name as PreferenceKey] ? "on" : "";
+  }
+  const value = (preferences as unknown as Record<string, string>)[name] ?? "";
+  return value;
+}
+
+function isDefault(preferences: PagePreferences, name: string): boolean {
+  return preferenceValue(preferences, name) === preferenceValue(DEFAULT_PREFERENCES, name);
+}
+
+// Mirrors upstream Nitter: one cookie per preference, only non-default values
+// stored, default-valued keys expired so stale entries clear on save.
+export function preferencesCookies(preferences: PagePreferences, secure: boolean): string[] {
+  return PREFERENCE_NAMES.map((name) =>
+    isDefault(preferences, name)
+      ? cookieHeader(name, "", secure, 0)
+      : cookieHeader(name, encodeURIComponent(preferenceValue(preferences, name)), secure, COOKIE_MAX_AGE),
+  );
+}
+
+export function resetPreferenceCookies(secure: boolean): string[] {
+  return PREFERENCE_NAMES.map((name) => cookieHeader(name, "", secure, 0));
+}
+
+export function encodePrefs(preferences: PagePreferences): string {
+  return PREFERENCE_NAMES
+    .filter((name) => !isDefault(preferences, name))
+    .map((name) => `${name}=${preferenceValue(preferences, name)}`)
+    .join(",");
 }
 
 export function bodyClass(preferences: PagePreferences): string {
   return preferences.stickyNav ? ' class="fixed-nav"' : "";
 }
 
-function cookieHeader(value: string, secure: boolean, maxAge: number): string {
-  return `${PREFERENCES_COOKIE}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`;
+function cookieHeader(name: string, value: string, secure: boolean, maxAge: number): string {
+  return `${name}=${value}; Path=/; Max-Age=${maxAge}; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`;
 }

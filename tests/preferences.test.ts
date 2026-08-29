@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_PREFERENCES, decodePreferences, encodePreferences, preferencesFromRequest } from "../src/preferences";
+import { DEFAULT_PREFERENCES, encodePrefs, preferencesCookies, preferencesFromBookmark, preferencesFromRequest, preferencesRedirect } from "../src/preferences";
 import { renderProfilePage, renderTweet } from "../src/render/profile";
 import { renderHomePage } from "../src/render/home";
 import { renderAboutPage } from "../src/render/about";
@@ -46,27 +46,35 @@ function tweet(id: string, pinned = false) {
   };
 }
 
+function cookieHeader(preferences: typeof DEFAULT_PREFERENCES): string {
+  return preferencesCookies(preferences, true)
+    .filter((cookie) => !cookie.includes("Max-Age=0"))
+    .map((cookie) => cookie.split(";", 1)[0])
+    .join("; ");
+}
+
 describe("preferences", () => {
-  it("round-trips the strict versioned cookie and falls back on malformed values", () => {
-    const preferences = { ...DEFAULT_PREFERENCES, hideBanner: true, squareAvatars: true };
-    expect(decodePreferences(encodePreferences(preferences))).toEqual(preferences);
-    expect(decodePreferences("v2.zzz")).toEqual(DEFAULT_PREFERENCES);
-    expect(decodePreferences("v1.0")).toEqual({
-      stickyNav: false,
-      stickyProfile: false,
-      hideTweetStats: false,
-      hideBanner: false,
-      hidePins: false,
-      hideReplies: false,
-      squareAvatars: false,
-      mp4Playback: false,
-      muteVideos: false,
-      autoplayGifs: false,
-      compactGallery: false,
-      mediaView: "grid",
-      gallerySize: "medium",
-    });
-    expect(preferencesFromRequest(new Request("https://nitter.test", { headers: { cookie: `other=x; nitter_prefs=${encodePreferences(preferences)}` } }))).toEqual(preferences);
+  it("uses upstream per-preference cookies, bookmarks, and temporary query overrides", () => {
+    const preferences = {
+      ...DEFAULT_PREFERENCES,
+      hideBanner: true,
+      squareAvatars: true,
+      theme: "Auto (Twitter)" as const,
+      replaceTwitter: "nitter.example",
+    };
+    const bookmark = "hideBanner=on,squareAvatars=on,theme=Auto (Twitter),replaceTwitter=nitter.example";
+    expect(encodePrefs(preferences)).toBe(bookmark);
+    expect(preferencesFromBookmark(bookmark)).toEqual(preferences);
+    expect(preferencesFromRequest(new Request("https://nitter.test", { headers: { cookie: cookieHeader(preferences) } }))).toEqual(preferences);
+    expect(preferencesFromRequest(new Request("https://nitter.test?hideBanner=&theme=Dracula", {
+      headers: { cookie: "hideBanner=on; theme=Neon; mediaView=cards" },
+    }))).toMatchObject({ hideBanner: false, theme: "Dracula", mediaView: "grid" });
+
+    const redirect = preferencesRedirect(new Request(`https://nitter.test/alice?prefs=${encodeURIComponent(bookmark)}&q=test`));
+    expect(redirect?.status).toBe(303);
+    expect(redirect?.headers.get("location")).toBe("https://nitter.test/alice?q=test");
+    expect(redirect?.headers.get("set-cookie")).toContain("hideBanner=on; Path=/; Max-Age=31536000");
+    expect(redirect?.headers.get("set-cookie")).toContain("stickyNav=; Path=/; Max-Age=0");
   });
 
   it("saves and resets preferences with secure same-origin cookies", async () => {
@@ -78,11 +86,14 @@ describe("preferences", () => {
     const saved = await serveSavePreferences(new Request("https://nitter.test/settings", {
       method: "POST",
       headers,
-      body: "stickyNav=on&hideBanner=on&squareAvatars=on&mediaView=Gallery&gallerySize=Large&returnTo=%2Falice",
+      body: "stickyNav=on&stickyProfile=on&hideBanner=on&squareAvatars=on&mp4Playback=on&proxyVideos=on&autoplayGifs=on&hideRelated=on&mediaView=Gallery&gallerySize=Large&theme=Dracula&returnTo=%2Falice",
     }));
     expect(saved.status).toBe(303);
     expect(saved.headers.get("location")).toBe("https://nitter.test/alice");
-    expect(saved.headers.get("set-cookie")).toMatch(/^nitter_prefs=v2\.[0-9a-z]+\.a\.l; Path=\/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure$/);
+    expect(saved.headers.get("set-cookie")).toContain("hideBanner=on; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure");
+    expect(saved.headers.get("set-cookie")).toContain("mediaView=gallery; Path=/; Max-Age=31536000");
+    expect(saved.headers.get("set-cookie")).toContain("stickyNav=; Path=/; Max-Age=0");
+    expect(saved.headers.get("set-cookie")).not.toContain("nitter_prefs");
 
     const reset = await serveResetPreferences(new Request("https://nitter.test/settings/reset", {
       method: "POST",
@@ -150,6 +161,13 @@ describe("preferences", () => {
     }));
     expect(invalidChoice.status).toBe(400);
 
+    const invalidTheme = await serveSavePreferences(new Request("https://nitter.test/settings", {
+      method: "POST",
+      headers,
+      body: "theme=Neon",
+    }));
+    expect(invalidTheme.status).toBe(400);
+
     const oversized = await serveSavePreferences(new Request("https://nitter.test/settings", {
       method: "POST",
       headers,
@@ -178,10 +196,11 @@ describe("preferences", () => {
       muteVideos: true,
       autoplayGifs: false,
     };
-    const cookie = `nitter_prefs=${encodePreferences(preferences)}`;
+    const cookie = cookieHeader(preferences);
     const settings = serveSettingsPage(new Request("https://nitter.test/settings?referer=%2Falice", { headers: { cookie } }));
     const settingsHtml = await settings.text();
     expect(settings.headers.get("cache-control")).toBe("private, no-store");
+    expect(settings.headers.get("content-security-policy")).toContain("worker-src 'self' blob:");
     expect(settingsHtml).toContain('name="hideBanner" type="checkbox" checked');
     expect(settingsHtml).toContain('type="hidden" name="referer" value="/alice"');
     expect(settingsHtml).toContain("<legend>Display</legend>");
@@ -192,6 +211,19 @@ describe("preferences", () => {
     expect(settingsHtml).toContain("Keep navbar fixed to top");
     expect(settingsHtml).toContain('name="mediaView" id="mediaView"');
     expect(settingsHtml).toContain('<option value="Grid" selected>Grid</option>');
+    expect(settingsHtml).toContain('name="theme" id="theme"');
+    expect(settingsHtml).toContain('<option value="Auto (Twitter)">Auto (Twitter)</option>');
+    expect(settingsHtml).toContain('title="bidiSupport"');
+    expect(settingsHtml).toContain("Support bidirectional text (makes clicking on tweets harder)");
+    expect(settingsHtml).toContain('name="hideRelated" type="checkbox" checked');
+    expect(settingsHtml).toContain("Hide related tweets under replies");
+    expect(settingsHtml).toContain('name="hideCommunityNotes" type="checkbox"');
+    expect(settingsHtml).toContain('name="hlsPlayback" type="checkbox"');
+    expect(settingsHtml).toContain('name="proxyVideos" type="checkbox" checked');
+    expect(settingsHtml).toContain('name="infiniteScroll" type="checkbox"');
+    expect(settingsHtml).toContain('name="replaceTwitter" id="replaceTwitter"');
+    expect(settingsHtml).toContain("<legend>Bookmark</legend>");
+    expect(settingsHtml).toContain("https://nitter.test/?prefs=stickyNav=,stickyProfile=,hideTweetStats=on,hideBanner=on");
 
     const html = renderProfilePage(profile, { tweets: [tweet("2"), tweet("1")], pinned: tweet("1", true) }, "tweets", [], preferences);
     expect(html).toContain("<body>");
@@ -204,7 +236,12 @@ describe("preferences", () => {
     expect(html).not.toContain('<article class="timeline-item');
     expect(renderHomePage(preferences)).toContain("<body>");
     expect(renderHomePage(DEFAULT_PREFERENCES)).toContain('<body class="fixed-nav">');
-    expect(renderHomePage(preferences)).toContain('/settings?referer=%2F');
+    expect(renderHomePage(preferences)).toContain("/settings?referer=%2F");
+    expect(renderHomePage(DEFAULT_PREFERENCES)).toContain('/css/themes/nitter.css"');
+    expect(renderHomePage({ ...DEFAULT_PREFERENCES, theme: "Twitter Dark" })).toContain('/css/themes/twitter_dark.css"');
+
+    const bidi = renderTweet(tweet("9"), false, { ...DEFAULT_PREFERENCES, bidiSupport: true });
+    expect(bidi).toContain('class="tweet-content media-body tweet-bidi"');
     expect(renderAboutPage(profile, preferences)).toContain('class="avatar"');
     expect(renderAboutPage(profile, preferences)).not.toContain('avatar round');
 
@@ -237,18 +274,39 @@ describe("preferences", () => {
     expect(about).toContain("Connected via");
     expect(about).toContain("Japan App Store");
 
-    const status = renderStatusPage({ tweet: tweet("2"), before: [], after: [], replies: [[tweet("3")]] }, preferences);
+    const status = renderStatusPage({ tweet: tweet("2"), before: [], after: [], replies: [[tweet("3")]], related: [] }, preferences);
     expect(status).not.toContain('class="replies"');
-    const statusWithReplies = renderStatusPage({ tweet: tweet("2"), before: [], after: [], replies: [[tweet("3")]] }, { ...preferences, hideReplies: false });
+    const statusWithReplies = renderStatusPage({ tweet: tweet("2"), before: [], after: [], replies: [[tweet("3")]], related: [] }, { ...preferences, hideReplies: false });
     expect(statusWithReplies).toContain('class="timeline-item tweet thread-last"');
 
     const videoTweet = { ...tweet("4"), media: [{ kind: "video" as const, url: "https://video.twimg.com/video.mp4", preview: "https://pbs.twimg.com/video.jpg", alt: "" }] };
     const disabledVideo = renderTweet(videoTweet, false, preferences);
     expect(disabledVideo).not.toContain("<video");
     expect(disabledVideo).toContain('href="/media?url=https%3A%2F%2Fvideo.twimg.com%2Fvideo.mp4"');
-    const enabled = { ...preferences, mp4Playback: true, muteVideos: true };
+    const enabled = { ...preferences, mp4Playback: true, proxyVideos: false, muteVideos: true };
     expect(renderTweet(videoTweet, false, enabled)).toContain("<video controls muted playsinline");
+    expect(renderTweet(videoTweet, false, enabled)).toContain('src="https://video.twimg.com/video.mp4"');
     expect(renderTweet(videoTweet, false, enabled)).toContain('class="gallery-row mixed-row"');
+
+    const hlsTweet = { ...videoTweet, media: [{ ...videoTweet.media[0]!, hls: "https://video.twimg.com/master.m3u8" }] };
+    const hls = { ...preferences, hlsPlayback: true };
+    expect(renderTweet(hlsTweet, false, hls)).toContain('data-url="/media?url=https%3A%2F%2Fvideo.twimg.com%2Fmaster.m3u8"');
+    expect(renderTweet(hlsTweet, false, hls)).toContain('onclick="playVideo(this)"');
+    expect(renderProfilePage(profile, { tweets: [hlsTweet] }, "tweets", [], hls)).toContain('<script src="/js/hls.min.js" defer></script>');
+    expect(renderProfilePage(profile, { tweets: [] }, "tweets", [], { ...preferences, infiniteScroll: true })).toContain('<script src="/js/infiniteScroll.js" defer></script>');
+
+    const linkedTweet = {
+      ...tweet("5"),
+      text: "watch",
+      links: [{ kind: "url" as const, start: 0, end: 5, display: "watch", url: "https://youtube.com/watch?v=1" }],
+    };
+    expect(renderTweet(linkedTweet, false, { ...preferences, replaceYouTube: "piped.example" })).toContain('href="https://piped.example/watch?v=1"');
+    const unrelatedLink = { ...linkedTweet, links: [{ ...linkedTweet.links[0]!, url: "https://notyoutube.com/watch?v=1" }] };
+    expect(renderTweet(unrelatedLink, false, { ...preferences, replaceYouTube: "piped.example" })).toContain('href="https://notyoutube.com/watch?v=1"');
+    const fakeTwitter = { ...linkedTweet, links: [{ ...linkedTweet.links[0]!, url: "https://twitter.com.evil/watch" }] };
+    expect(renderTweet(fakeTwitter, false, { ...preferences, replaceTwitter: "nitter.example" })).toContain('href="https://twitter.com.evil/watch"');
+    const fakeReddit = { ...linkedTweet, links: [{ ...linkedTweet.links[0]!, url: "https://reddit.com.evil/watch" }] };
+    expect(renderTweet(fakeReddit, false, { ...preferences, replaceReddit: "libreddit.example" })).toContain('href="https://reddit.com.evil/watch"');
 
     const paged = renderProfilePage(profile, { tweets: [] }, "tweets", [], preferences, "page cursor");
     expect(paged).toContain("referer=%2Falice%3Fcursor%3Dpage%2520cursor");

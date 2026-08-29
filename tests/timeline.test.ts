@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_PREFERENCES } from "../src/preferences";
 import { renderTweet } from "../src/render/profile";
 import { parseTimeline } from "../src/x/timeline";
 
@@ -435,7 +436,7 @@ describe("parseTimeline", () => {
     });
   });
 
-  it("selects MP4 variants and renders inline video and GIF playback", () => {
+  it("selects HLS and MP4 variants and renders configured video and GIF playback", () => {
     const author = {
       rest_id: "1",
       core: { screen_name: "alice", name: "Alice" },
@@ -446,6 +447,12 @@ describe("parseTimeline", () => {
       rest_id: "400",
       legacy: { full_text: "video", created_at: "Wed Aug 26 12:00:00 +0000 2026", entities: {} },
       core: { user_results: { result: author } },
+      birdwatch_pivot: {
+        subtitle: {
+          text: "Read details",
+          entities: [{ from_index: 5, to_index: 12, ref: { url: "https://communitynotes.x.com/guide" } }],
+        },
+      },
       media_entities: [{ media_results: { result: { media_info: {
         __typename: "ApiVideo",
         preview_image: { original_img_url: "https://pbs.twimg.com/video.jpg" },
@@ -476,13 +483,23 @@ describe("parseTimeline", () => {
       { entryId: "tweet-400", content: { itemContent: { tweet_results: { result: video } } } },
       { entryId: "tweet-401", content: { itemContent: { tweet_results: { result: gif } } } },
     ] }] } } } } });
-    expect(timeline.tweets[0]?.media[0]).toMatchObject({ kind: "video", url: "https://video.twimg.com/high.mp4", preview: "https://pbs.twimg.com/video.jpg" });
+    expect(timeline.tweets[0]?.media[0]).toMatchObject({
+      kind: "video",
+      url: "https://video.twimg.com/high.mp4",
+      hls: "https://video.twimg.com/master.m3u8",
+      preview: "https://pbs.twimg.com/video.jpg",
+    });
     expect(timeline.tweets[1]?.media[0]).toMatchObject({ kind: "gif", url: "https://video.twimg.com/gif.mp4" });
-    const videoHtml = renderTweet(timeline.tweets[0]!);
+    const videoHtml = renderTweet(timeline.tweets[0]!, false, { ...DEFAULT_PREFERENCES, hlsPlayback: true });
+    const directVideoHtml = renderTweet(timeline.tweets[0]!, false, { ...DEFAULT_PREFERENCES, proxyVideos: false });
     const gifHtml = renderTweet(timeline.tweets[1]!);
-    expect(videoHtml).toContain("<video controls playsinline");
-    expect(videoHtml).toContain("video.twimg.com%2Fhigh.mp4");
-    expect(videoHtml).not.toContain("master.m3u8");
+    expect(videoHtml).toContain('data-url="/media?url=https%3A%2F%2Fvideo.twimg.com%2Fmaster.m3u8"');
+    expect(videoHtml).toContain('onclick="playVideo(this)"');
+    expect(videoHtml).toContain('class="community-note"');
+    expect(videoHtml).toContain('href="https://communitynotes.x.com/guide"');
+    expect(renderTweet(timeline.tweets[0]!, false, { ...DEFAULT_PREFERENCES, hideCommunityNotes: true })).not.toContain('class="community-note"');
+    expect(directVideoHtml).toContain("<video controls playsinline");
+    expect(directVideoHtml).toContain('src="https://video.twimg.com/high.mp4"');
     expect(gifHtml).toContain("<video autoplay muted loop playsinline");
   });
 });

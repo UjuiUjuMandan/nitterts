@@ -1,5 +1,5 @@
 import { mediaProxyUrl } from "../media";
-import { bodyClass, DEFAULT_PREFERENCES, type MediaView, type PagePreferences } from "../preferences";
+import { bodyClass, DEFAULT_PREFERENCES, themeSlug, type MediaView, type PagePreferences } from "../preferences";
 import type { Profile } from "../x/profile";
 import type { PhotoRailItem, ProfileTab, Timeline, Tweet, TweetLink, VerifiedType } from "../x/timeline";
 
@@ -56,7 +56,7 @@ export function renderProfilePage(
   <title>${escapeHtml(title)}</title>
   <link rel="icon" href="/favicon.ico">
   <link rel="stylesheet" href="/css/fontello.css">
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/style.css">${themeLink(preferences)}${headScripts(preferences)}
   <link rel="alternate" type="application/rss+xml" href="/${encodeURIComponent(profile.username)}/rss" title="RSS feed">
 </head>
 <body${bodyClass(preferences)}>
@@ -64,7 +64,7 @@ export function renderProfilePage(
   <div class="container">
     <main class="profile-tabs${gallery ? " media-only" : ""}">
       ${gallery || !profile.banner || preferences.hideBanner ? "" : `<div class="profile-banner"><a href="${escapeAttribute(mediaProxyUrl(profile.banner))}" target="_blank" rel="noopener" aria-label="Open banner image"><img src="${escapeAttribute(mediaProxyUrl(profile.banner))}" alt=""></a></div>`}
-      ${gallery ? "" : `<aside class="profile-tab${preferences.stickyProfile ? " sticky" : ""}">${renderProfileCard(profile)}${renderPhotoRail(profile, photos)}</aside>`}
+      ${gallery ? "" : `<aside class="profile-tab${preferences.stickyProfile ? " sticky" : ""}">${renderProfileCard(profile, preferences)}${renderPhotoRail(profile, photos)}</aside>`}
       <section class="timeline-container${gallery ? " media-only" : ""}">
         ${gallery ? "" : `<ul class="tab">
           <li class="tab-item${tab === "tweets" ? " active" : ""}"><a href="${base}">Tweets</a></li>
@@ -73,8 +73,7 @@ export function renderProfilePage(
           <li class="tab-item"><a href="${base}/search">Search</a></li>
         </ul>`}
         ${tab === "media" ? renderMediaViewTabs(base, activeMediaView) : ""}
-        <div class="timeline${tab === "media" ? ` media-${activeMediaView}-view` : ""}">${renderedTimeline}</div>
-        ${profile.protected || profile.suspended ? "" : more}
+        <div class="timeline${tab === "media" ? ` media-${activeMediaView}-view` : ""}">${renderedTimeline}${profile.protected || profile.suspended ? "" : more}<div class="timeline-footer"></div><div class="top-ref"><div class="icon-container"><a class="icon-down" href="#" title="Back to top"></a></div></div></div>
       </section>
     </main>
   </div>
@@ -84,6 +83,51 @@ export function renderProfilePage(
 
 function renderMediaViewTabs(base: string, active: MediaView): string {
   return `<ul class="tab media-view-tabs">${(["timeline", "grid", "gallery"] as const).map((view) => `<li class="tab-item${active === view ? " active" : ""}"><a href="${base}/media?view=${view}">${view[0]!.toUpperCase()}${view.slice(1)}</a></li>`).join("")}</ul>`;
+}
+
+export function themeLink(preferences: PagePreferences): string {
+  return `\n  <link rel="stylesheet" href="${escapeAttribute(`/css/themes/${themeSlug(preferences.theme)}.css`)}">`;
+}
+
+export function headScripts(preferences: PagePreferences): string {
+  let scripts = "";
+  if (preferences.hlsPlayback) {
+    scripts += '\n  <script src="/js/hls.min.js" defer></script>\n  <script src="/js/hlsPlayback.js?v=1" defer></script>';
+  }
+  if (preferences.infiniteScroll) {
+    scripts += '\n  <script src="/js/infiniteScroll.js" defer></script>';
+  }
+  return scripts;
+}
+
+// Port of upstream replaceUrls (formatters.nim): swaps Twitter/YouTube/Reddit
+// hosts in external URLs according to the link replacement preferences.
+export function replaceUrl(url: string, preferences: PagePreferences): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return url;
+  }
+  const hostname = parsed.hostname.toLowerCase();
+  const youtube = preferences.replaceYouTube.replace(/\/+$/, "");
+  if (youtube && (hostname === "youtu.be" || hostname === "youtube.com" || hostname.endsWith(".youtube.com"))) {
+    parsed.host = youtube;
+    return parsed.toString();
+  }
+  const twitter = preferences.replaceTwitter.replace(/\/+$/, "");
+  if (twitter && ["twitter.com", "www.twitter.com", "mobile.twitter.com", "cards.twitter.com", "x.com", "www.x.com", "mobile.x.com"].includes(hostname)) {
+    parsed.host = twitter;
+    return parsed.toString();
+  }
+  const reddit = preferences.replaceReddit.replace(/\/+$/, "");
+  if (reddit && (hostname === "redd.it" || ["reddit.com", "www.reddit.com", "np.reddit.com", "new.reddit.com", "amp.reddit.com", "old.reddit.com"].includes(hostname))) {
+    if (hostname === "redd.it") parsed.pathname = `/comments${parsed.pathname}`;
+    if (parsed.pathname.startsWith("/gallery/")) parsed.pathname = parsed.pathname.replace("/gallery/", "/comments/");
+    parsed.host = reddit;
+    return parsed.toString();
+  }
+  return url;
 }
 
 export function renderErrorPage(message: string, status: number): string {
@@ -96,7 +140,7 @@ export function renderNavbar(rss = "", currentPath = ""): string {
   return `<nav><div class="inner-nav"><div class="nav-item"><a class="site-name" href="/">nitter</a></div><a href="/"><img class="site-logo" src="/logo.png" alt="Logo"></a><div class="nav-item right"><a class="icon-search" title="Search" href="/search"></a>${rssLink}<a class="icon-cog" title="Preferences" href="${escapeAttribute(settings)}"></a></div></div></nav>`;
 }
 
-export function renderProfileCard(profile: Profile): string {
+export function renderProfileCard(profile: Profile, preferences: PagePreferences = { ...DEFAULT_PREFERENCES }): string {
   const avatar = profile.avatar
     ? `<a class="profile-card-avatar" href="${escapeAttribute(mediaProxyUrl(profile.avatar))}" target="_blank" rel="noopener" aria-label="Open ${escapeAttribute(profile.name)}'s profile image"><img src="${escapeAttribute(mediaProxyUrl(profile.avatar))}" alt=""></a>`
     : "";
@@ -109,10 +153,10 @@ export function renderProfileCard(profile: Profile): string {
       </div>
     </div>
     <div class="profile-card-extra">
-      ${profile.bio ? `<div class="profile-bio"><p dir="auto">${linkify(profile.bio, profile.bioLinks)}</p></div>` : ""}
+      ${profile.bio ? `<div class="profile-bio"><p dir="auto">${linkify(profile.bio, profile.bioLinks, preferences)}</p></div>` : ""}
       ${profile.location ? `<div class="profile-location"><span class="icon-location"></span><span>${escapeHtml(profile.location)}</span></div>` : ""}
       ${profile.basedIn ? `<div class="profile-location"><span class="icon-location"></span><span>Based in ${escapeHtml(profile.basedIn)}</span></div>` : ""}
-      ${profile.website && /^https?:\/\//i.test(profile.website) ? `<div class="profile-website"><span class="icon-link"></span><a href="${escapeAttribute(profile.website)}" target="_blank" rel="noopener">${escapeHtml(shortLink(profile.website))}</a></div>` : profile.website ? `<div class="profile-website"><span class="icon-link"></span><span>${escapeHtml(shortLink(profile.website))}</span></div>` : ""}
+      ${profile.website && /^https?:\/\//i.test(profile.website) ? `<div class="profile-website"><span class="icon-link"></span><a href="${escapeAttribute(replaceUrl(profile.website, preferences))}" target="_blank" rel="noopener">${escapeHtml(shortLink(replaceUrl(profile.website, preferences)))}</a></div>` : profile.website ? `<div class="profile-website"><span class="icon-link"></span><span>${escapeHtml(shortLink(profile.website))}</span></div>` : ""}
       ${profile.joinedAt ? `<div class="profile-joindate"><a href="/${encodeURIComponent(profile.username)}/about" title="${escapeAttribute(formatJoinDateFull(profile.joinedAt))}"><span class="icon-calendar"></span> ${escapeHtml(formatJoinDate(profile.joinedAt))}</a></div>` : ""}
       <div class="profile-card-extra-links">
         <ul class="profile-statlist">
@@ -149,7 +193,7 @@ export function renderUserResult(profile: Profile, preferences: PagePreferences 
     <a class="tweet-link" href="${href}" aria-label="View @${escapeAttribute(profile.username)} profile"></a>
     <div class="tweet-body profile-result">
       <div class="tweet-header">${avatar}<div class="tweet-name-row"><div class="fullname-and-username"><a class="fullname" href="${href}">${escapeHtml(profile.name)}</a>${verifiedBadge(profile.verifiedType)}</div></div><a class="username" href="${href}">@${escapeHtml(profile.username)}</a></div>
-      ${profile.bio ? `<div class="tweet-content media-body" dir="auto">${linkify(profile.bio, profile.bioLinks)}</div>` : ""}
+      ${profile.bio ? `<div class="tweet-content media-body" dir="auto">${linkify(profile.bio, profile.bioLinks, preferences)}</div>` : ""}
     </div>
   </div>`;
 }
@@ -190,9 +234,10 @@ export function renderTweet(source: Tweet, main = false, preferences: PagePrefer
         </div>
       </div>
       ${tweet.replyTo.length ? `<div class="replying-to">Replying to ${tweet.replyTo.map((name) => `@${escapeHtml(name)}`).join(" ")}</div>` : ""}
-      <div class="tweet-content media-body" dir="auto">${linkify(tweet.text, tweet.links)}</div>
+      <div class="tweet-content media-body${preferences.bidiSupport ? " tweet-bidi" : ""}" dir="auto">${linkify(tweet.text, tweet.links, preferences)}</div>
       ${media}
       ${quote}
+      ${renderCommunityNote(tweet, preferences)}
       ${main ? `<p class="tweet-published">${escapeHtml(formatFullDate(tweet.createdAt))}</p>` : ""}
       ${preferences.hideTweetStats ? "" : `<div class="tweet-stats"><span class="tweet-stat"><div class="icon-container"><span class="icon-comment"></span> ${formatNumber(tweet.replies)}</div></span><span class="tweet-stat"><div class="icon-container"><span class="icon-retweet"></span> ${formatNumber(tweet.retweets)}</div></span><span class="tweet-stat"><div class="icon-container"><span class="icon-heart"></span> ${formatNumber(tweet.likes)}</div></span>${tweet.views ? `<span class="tweet-stat"><div class="icon-container"><span class="icon-views"></span> ${formatNumber(tweet.views)}</div></span>` : ""}</div>`}
     </div>
@@ -213,18 +258,25 @@ function renderMedia(tweet: Tweet, preferences: PagePreferences): string {
     .map((item) => {
       const image = item.kind === "photo" ? item.url : item.preview;
       if (!image) return "";
+      const videoSrc = (url: string) => preferences.proxyVideos ? mediaProxyUrl(url) : url;
       if (item.kind === "photo") {
         return { kind: item.kind, html: `<a class="attachment still-image" href="${escapeAttribute(mediaProxyUrl(item.url))}" target="_blank" rel="noopener"><img loading="lazy" src="${escapeAttribute(mediaProxyUrl(image))}" alt="${escapeAttribute(item.alt)}"></a>` };
       }
-      if (item.url && preferences.mp4Playback) {
-        const playback = item.kind === "gif"
-          ? preferences.autoplayGifs ? " autoplay muted loop" : " controls muted loop"
-          : ` controls${preferences.muteVideos ? " muted" : ""}`;
-        return { kind: item.kind, html: `<div class="attachment video-container"><video${playback} playsinline preload="metadata" poster="${escapeAttribute(mediaProxyUrl(image))}" aria-label="${escapeAttribute(item.alt || (item.kind === "gif" ? "GIF" : "Video"))}"><source src="${escapeAttribute(mediaProxyUrl(item.url))}" type="video/mp4"></video></div>` };
+      const directMp4 = item.kind === "video" && !preferences.proxyVideos && item.url;
+      if (item.kind === "video" && (directMp4 || (preferences.hlsPlayback && item.hls))) {
+        const source = videoSrc(directMp4 || item.hls || "");
+        if (directMp4) {
+          return { kind: item.kind, html: `<div class="attachment video-container"><video controls${preferences.muteVideos ? " muted" : ""} playsinline preload="metadata" poster="${escapeAttribute(mediaProxyUrl(image))}" aria-label="${escapeAttribute(item.alt || "Video")}"><source src="${escapeAttribute(source)}" type="video/mp4"></video></div>` };
+        }
+        return { kind: item.kind, html: `<div class="attachment video-container"><video data-url="${escapeAttribute(source)}" data-autoload="false"${preferences.muteVideos ? " muted" : ""} playsinline preload="metadata" poster="${escapeAttribute(mediaProxyUrl(image))}" aria-label="${escapeAttribute(item.alt || "Video")}"></video><div class="video-overlay" onclick="playVideo(this)"><div class="overlay-circle"><span class="overlay-triangle"></span></div></div></div>` };
+      }
+      if (item.kind === "gif" && item.url && preferences.mp4Playback) {
+        const playback = preferences.autoplayGifs ? " autoplay muted loop" : " controls muted loop";
+        return { kind: item.kind, html: `<div class="attachment video-container"><video${playback} playsinline preload="metadata" poster="${escapeAttribute(mediaProxyUrl(image))}" aria-label="${escapeAttribute(item.alt || (item.kind === "gif" ? "GIF" : "Video"))}"><source src="${escapeAttribute(videoSrc(item.url))}" type="video/mp4"></video></div>` };
       }
       const fallback = `<img loading="lazy" src="${escapeAttribute(mediaProxyUrl(image))}" alt="${escapeAttribute(item.alt)}"><span class="media-badge">${item.kind === "gif" ? "GIF" : "VIDEO"}</span>`;
       const html = item.url
-        ? `<a class="attachment still-image" href="${escapeAttribute(mediaProxyUrl(item.url))}" target="_blank" rel="noopener">${fallback}</a>`
+        ? `<a class="attachment still-image" href="${escapeAttribute(videoSrc(item.url))}" target="_blank" rel="noopener">${fallback}</a>`
         : `<div class="attachment still-image">${fallback}</div>`;
       return { kind: item.kind, html };
     })
@@ -243,7 +295,12 @@ function renderQuote(tweet: Tweet, preferences: PagePreferences): string {
   const permalink = `/${encodeURIComponent(tweet.author.username)}/status/${encodeURIComponent(tweet.id)}`;
   const media = renderMedia(tweet, preferences);
   const avatar = tweet.author.avatar ? `<img class="avatar${preferences.squareAvatars ? "" : " round"} mini" src="${escapeAttribute(mediaProxyUrl(tweet.author.avatar))}" alt="" loading="lazy">` : "";
-  return `<blockquote class="quote quote-big"><a class="quote-link" href="${permalink}" aria-label="View quoted post"></a><div class="tweet-name-row"><div class="fullname-and-username">${avatar}<a class="fullname" href="/${encodeURIComponent(tweet.author.username)}">${escapeHtml(tweet.author.name)}</a>${verifiedBadge(tweet.author.verifiedType)}<a class="username" href="/${encodeURIComponent(tweet.author.username)}">@${escapeHtml(tweet.author.username)}</a></div><span class="tweet-date"><a href="${permalink}" title="${escapeAttribute(formatFullDate(tweet.createdAt))}">${escapeHtml(formatDate(tweet.createdAt))}</a></span></div><div class="quote-text" dir="auto">${linkify(tweet.text, tweet.links)}</div>${media ? `<div class="quote-media-container">${media}</div>` : ""}</blockquote>`;
+  return `<blockquote class="quote quote-big"><a class="quote-link" href="${permalink}" aria-label="View quoted post"></a><div class="tweet-name-row"><div class="fullname-and-username">${avatar}<a class="fullname" href="/${encodeURIComponent(tweet.author.username)}">${escapeHtml(tweet.author.name)}</a>${verifiedBadge(tweet.author.verifiedType)}<a class="username" href="/${encodeURIComponent(tweet.author.username)}">@${escapeHtml(tweet.author.username)}</a></div><span class="tweet-date"><a href="${permalink}" title="${escapeAttribute(formatFullDate(tweet.createdAt))}">${escapeHtml(formatDate(tweet.createdAt))}</a></span></div><div class="quote-text" dir="auto">${linkify(tweet.text, tweet.links, preferences)}</div>${media ? `<div class="quote-media-container">${media}</div>` : ""}${renderCommunityNote(tweet, preferences)}</blockquote>`;
+}
+
+function renderCommunityNote(tweet: Tweet, preferences: PagePreferences): string {
+  if (!tweet.communityNote || preferences.hideCommunityNotes) return "";
+  return `<div class="community-note"><div class="community-note-header"><span class="icon-group"></span><span>Community note</span></div><div class="community-note-text" dir="auto">${linkify(tweet.communityNote, tweet.communityNoteLinks ?? [], preferences)}</div></div>`;
 }
 
 function renderStat(label: string, value: number): string {
@@ -260,7 +317,7 @@ function formatText(value: string): string {
   return escapeHtml(value).replace(/\n/g, "<br>");
 }
 
-function linkify(text: string, links: TweetLink[]): string {
+function linkify(text: string, links: TweetLink[], preferences: PagePreferences = { ...DEFAULT_PREFERENCES }): string {
   if (!links.length) return formatText(text);
   const units = [...text];
   const ordered = [...links]
@@ -271,7 +328,7 @@ function linkify(text: string, links: TweetLink[]): string {
   let cursor = 0;
   for (const link of ordered) {
     if (link.start < cursor) continue;
-    const href = safeHref(link);
+    const href = replaceUrl(safeHref(link), preferences);
     if (!href) continue;
     const display = link.display || units.slice(link.start, link.end).join("");
     result += formatText(units.slice(cursor, link.start).join(""));

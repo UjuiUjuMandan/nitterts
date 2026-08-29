@@ -28,6 +28,7 @@ export type TweetAuthor = {
 export type TweetMedia = {
   kind: "photo" | "video" | "gif";
   url: string;
+  hls?: string;
   preview: string;
   alt: string;
 };
@@ -53,6 +54,8 @@ export type Tweet = {
   replyTo: string[];
   media: TweetMedia[];
   links: TweetLink[];
+  communityNote?: string;
+  communityNoteLinks?: TweetLink[];
   retweet?: Tweet;
   quote?: Tweet;
   pinned: boolean;
@@ -517,6 +520,7 @@ export function parseTweet(value: Record<string, unknown>, depth = 0): Tweet | u
     ...unlinkedMediaUrlRanges(rawText, mediaEntities.length, linkedShortUrls),
   ]);
   const text = stripRanges(rawText, removedRanges);
+  const communityNote = parseCommunityNote(optionalRecord(value.birdwatch_pivot));
 
   const tweet: Tweet = {
     id,
@@ -531,6 +535,8 @@ export function parseTweet(value: Record<string, unknown>, depth = 0): Tweet | u
     replyTo: collectReplyUsers(value, legacy),
     media: parseMedia(value, legacy),
     links: remapLinks(parseLinks(value, legacy, details, noteText), removedRanges),
+    communityNote: communityNote.text,
+    communityNoteLinks: communityNote.links,
     pinned: false,
   };
 
@@ -549,6 +555,20 @@ export function parseTweet(value: Record<string, unknown>, depth = 0): Tweet | u
   if (quoteResult) tweet.quote = parseTweet(quoteResult, depth + 1);
 
   return tweet;
+}
+
+function parseCommunityNote(pivot: Record<string, unknown> | undefined): { text: string; links: TweetLink[] } {
+  const subtitle = optionalRecord(pivot?.subtitle);
+  const text = stringValue(subtitle?.text);
+  const links = (optionalArray(subtitle?.entities) ?? []).flatMap((value) => {
+    const entity = optionalRecord(value);
+    const url = stringValue(recordAt(entity, ["ref", "url"]));
+    const start = numberValue(entity?.from_index);
+    const end = numberValue(entity?.to_index);
+    if (!url || end <= start) return [];
+    return [{ kind: "url" as const, start, end, display: [...text].slice(start, end).join(""), url }];
+  });
+  return { text, links };
 }
 
 function parseAuthor(value: Record<string, unknown> | undefined): TweetAuthor {
@@ -618,6 +638,7 @@ function parseModernMedia(entity: Record<string, unknown> | undefined): TweetMed
     return [{
       kind: kind === "ApiGif" ? "gif" : "video",
       url,
+      hls: hlsVideoUrl(variants),
       preview: stringValue(recordAt(info, ["preview_image", "original_img_url"])),
       alt: stringValue(info.alt_text),
     }];
@@ -633,9 +654,11 @@ function parseLegacyMedia(entity: Record<string, unknown> | undefined): TweetMed
     return [{ kind: "photo", url: preview, preview: "", alt: stringValue(entity.ext_alt_text) }];
   }
   if (kind === "video" || kind === "animated_gif") {
+    const variants = optionalArray(recordAt(entity, ["video_info", "variants"]));
     return [{
       kind: kind === "animated_gif" ? "gif" : "video",
-      url: bestVideoUrl(optionalArray(recordAt(entity, ["video_info", "variants"]))),
+      url: bestVideoUrl(variants),
+      hls: hlsVideoUrl(variants),
       preview,
       alt: stringValue(entity.ext_alt_text),
     }];
@@ -649,6 +672,15 @@ function bestVideoUrl(variants: unknown[] | undefined): string {
     .filter((variant): variant is Record<string, unknown> => Boolean(variant))
     .filter((variant) => stringValue(variant.content_type || variant.type).includes("mp4"))
     .sort((a, b) => numberValue(b.bit_rate, b.bitrate) - numberValue(a.bit_rate, a.bitrate))
+    .map((variant) => stringValue(variant.url))
+    .find(Boolean) ?? "";
+}
+
+function hlsVideoUrl(variants: unknown[] | undefined): string {
+  return (variants ?? [])
+    .map(optionalRecord)
+    .filter((variant): variant is Record<string, unknown> => Boolean(variant))
+    .filter((variant) => /mpegurl/i.test(stringValue(variant.content_type || variant.type)))
     .map((variant) => stringValue(variant.url))
     .find(Boolean) ?? "";
 }

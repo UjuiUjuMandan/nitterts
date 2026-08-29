@@ -16,3 +16,21 @@ export function isAllowedMediaUrl(value: string): boolean {
 export function mediaProxyUrl(value: string): string {
   return `/media?url=${encodeURIComponent(value)}`;
 }
+
+export function rewriteVideoManifest(manifest: string, manifestUrl: string): string {
+  const proxy = (value: string): string => {
+    try {
+      const resolved = new URL(value, manifestUrl).toString();
+      return isAllowedMediaUrl(resolved) ? mediaProxyUrl(resolved) : value;
+    } catch {
+      return value;
+    }
+  };
+
+  return manifest.split("\n").map((line) => {
+    if (!line || line.startsWith("#")) {
+      return line.replace(/URI="([^"]+)"/g, (_match, url: string) => `URI="${proxy(url)}"`);
+    }
+    return proxy(line.trim());
+  }).join("\n");
+}

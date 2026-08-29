@@ -2,7 +2,7 @@ import { mediaProxyUrl } from "../media";
 import { bodyClass, DEFAULT_PREFERENCES, type PagePreferences } from "../preferences";
 import type { ListDetail, ListMembers } from "../x/list";
 import type { Timeline } from "../x/timeline";
-import { escapeAttribute, escapeHtml, renderNavbar, renderTweet, renderUserResult } from "./profile";
+import { escapeAttribute, escapeHtml, headScripts, renderNavbar, renderTweet, renderUserResult, themeLink } from "./profile";
 
 export function renderListPage(
   list: ListDetail,
@@ -31,7 +31,7 @@ export function renderListPage(
   <title>${escapeHtml(list.name)} | nitter</title>
   <link rel="icon" href="/favicon.ico">
   <link rel="stylesheet" href="/css/fontello.css">
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/style.css">${themeLink(preferences)}${headScripts(preferences)}
   <link rel="alternate" type="application/rss+xml" href="${base}/rss" title="RSS feed">
 </head>
 <body${bodyClass(preferences)}>
@@ -44,8 +44,7 @@ export function renderListPage(
         <li class="tab-item${tab === "tweets" ? " active" : ""}"><a href="${base}">Tweets</a></li>
         <li class="tab-item${tab === "members" ? " active" : ""}"><a href="${base}/members">Members</a></li>
       </ul>
-      <div class="timeline">${items || empty}</div>
-      ${more}
+      <div class="timeline">${items || empty}${more}<div class="timeline-footer"></div><div class="top-ref"><div class="icon-container"><a class="icon-down" href="#" title="Back to top"></a></div></div></div>
     </main>
   </div>
 </body>

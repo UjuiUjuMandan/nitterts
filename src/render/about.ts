@@ -1,7 +1,7 @@
 import { mediaProxyUrl } from "../media";
 import { bodyClass, DEFAULT_PREFERENCES, type PagePreferences } from "../preferences";
 import type { AccountInfo, Profile } from "../x/profile";
-import { escapeAttribute, escapeHtml, renderNavbar } from "./profile";
+import { escapeAttribute, escapeHtml, headScripts, renderNavbar, themeLink } from "./profile";
 
 export function renderAboutPage(profile: Profile, preferences: PagePreferences = { ...DEFAULT_PREFERENCES }, accountInfo?: AccountInfo): string {
   const base = `/${encodeURIComponent(profile.username)}`;
@@ -16,7 +16,7 @@ export function renderAboutPage(profile: Profile, preferences: PagePreferences =
   <title>About @${escapeHtml(profile.username)} | nitter</title>
   <link rel="icon" href="/favicon.ico">
   <link rel="stylesheet" href="/css/fontello.css">
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/style.css">${themeLink(preferences)}${headScripts(preferences)}
 </head>
 <body${bodyClass(preferences)}>
   ${renderNavbar(base, `${base}/about`)}

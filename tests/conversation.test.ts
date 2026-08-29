@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_PREFERENCES } from "../src/preferences";
 import { renderStatusPage } from "../src/render/status";
 import { parseConversation } from "../src/x/conversation";
 
@@ -33,7 +34,7 @@ function tweetEntry(id: string, username: string, text: string) {
   };
 }
 
-function threadEntry(id: string, username: string, text: string, self = false) {
+function threadEntry(id: string, username: string, text: string, self = false, related = false) {
   return {
     entryId: `conversationthread-${id}`,
     content: {
@@ -45,6 +46,7 @@ function threadEntry(id: string, username: string, text: string, self = false) {
               tweet_results: { result: tweet(id, username, text) },
               ...(self ? { tweetDisplayType: "SelfThread" } : {}),
             },
+            ...(related ? { client_event_info: { details: { conversation_details: { conversation_section: "RelatedTweet" } } } } : {}),
           },
         },
       ],
@@ -67,9 +69,10 @@ describe("parseConversation", () => {
                   threadEntry("3", "alice", "after", true),
                   threadEntry("4", "bob", "reply"),
                   {
-                    ...threadEntry("5", "carol", "related"),
+                    ...threadEntry("5", "carol", "related", false, true),
                     entryId: "tweetdetailrelatedtweets-5",
                   },
+                  threadEntry("6", "dave", "related too", false, true),
                   { entryId: "cursor-bottom-0", content: { value: "next" } },
                 ],
               },
@@ -84,13 +87,22 @@ describe("parseConversation", () => {
     expect(conversation.before.map((item) => item.id)).toEqual(["1"]);
     expect(conversation.after.map((item) => item.id)).toEqual(["3"]);
     expect(conversation.replies.map((thread) => thread.map((item) => item.id))).toEqual([["4"]]);
+    expect(conversation.related.map((thread) => thread.map((item) => item.id))).toEqual([["5"], ["6"]]);
     expect(conversation.cursor).toBe("next");
 
     const html = renderStatusPage(conversation);
     expect(html).toContain('class="conversation"');
+    expect(html).toContain('class="reply thread thread-line"');
+    expect(html).toContain('/alice/status/2?cursor=next#r');
     expect(html).toContain('class="main-tweet thread-line"');
     expect(html).toContain('class="replies"');
     expect(html).toContain("&lt;main&gt;");
     expect(html).not.toContain("<main></main>");
+    expect(html).not.toContain("related-tweets");
+
+    const withRelated = renderStatusPage(conversation, { ...DEFAULT_PREFERENCES, hideRelated: false });
+    expect(withRelated).toContain('class="related-tweets"');
+    expect(withRelated).toContain("Related tweets");
+    expect(withRelated).toContain("related too");
   });
 });

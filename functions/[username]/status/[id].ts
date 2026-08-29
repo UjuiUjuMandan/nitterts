@@ -9,6 +9,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const preferences = preferencesFromRequest(context.request);
   const username = context.params.username;
   const id = context.params.id;
+  const cursor = new URL(context.request.url).searchParams.get("cursor") ?? undefined;
   if (
     typeof username !== "string" ||
     !/^[A-Za-z0-9_]{1,15}$/.test(username) ||
@@ -20,7 +21,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
   try {
     const conversation = await withCookieSession(context.env.NITTER_SESSIONS, (session) =>
-      fetchConversation(id, session),
+      fetchConversation(id, session, cursor),
     );
     return html(renderStatusPage(conversation, preferences), 200);
   } catch (error) {
@@ -44,7 +45,7 @@ function html(body: string, status: number): Response {
     status,
     headers: {
       "content-type": "text/html; charset=utf-8",
-      "content-security-policy": "default-src 'self'; img-src 'self' data:; style-src 'self'; form-action 'self'; frame-ancestors 'none'",
+      "content-security-policy": "default-src 'self'; img-src 'self' data:; media-src 'self' blob: https://video.twimg.com; script-src 'self' 'unsafe-hashes' 'sha256-/Z4pjjEaN4JuXiqMBajQpiZZINsH7QgIOYHQmRoj740='; worker-src 'self' blob:; connect-src 'self' https://video.twimg.com; style-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
       "referrer-policy": "no-referrer",
       "x-content-type-options": "nosniff",
       "cache-control": "private, no-store",

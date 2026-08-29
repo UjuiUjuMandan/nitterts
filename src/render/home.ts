@@ -1,5 +1,5 @@
 import { bodyClass, type PagePreferences } from "../preferences";
-import { renderNavbar } from "./profile";
+import { headScripts, renderNavbar, themeLink } from "./profile";
 
 export function renderHomePage(preferences: PagePreferences): string {
   return `<!doctype html>
@@ -11,7 +11,7 @@ export function renderHomePage(preferences: PagePreferences): string {
   <title>nitter</title>
   <link rel="icon" href="/favicon.ico">
   <link rel="stylesheet" href="/css/fontello.css">
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/style.css">${themeLink(preferences)}${headScripts(preferences)}
 </head>
 <body${bodyClass(preferences)}>
   ${renderNavbar("", "/")}

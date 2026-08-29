@@ -9,12 +9,14 @@ export type Conversation = {
   before: Tweet[];
   after: Tweet[];
   replies: Tweet[][];
+  related: Tweet[][];
   cursor?: string;
 };
 
 export async function fetchConversation(
   tweetId: string,
   session: CookieSession,
+  cursor?: string,
 ): Promise<Conversation> {
   const variables: Record<string, unknown> = {
     postId: tweetId,
@@ -25,6 +27,7 @@ export async function fetchConversation(
     withVoice: false,
     withV2Timeline: true,
   };
+  if (cursor) variables.cursor = cursor;
   return parseConversation(await fetchGraphql(GRAPH_CONVERSATION, variables, {}, session), tweetId);
 }
 
@@ -38,6 +41,7 @@ export function parseConversation(value: unknown, tweetId: string): Conversation
   const before: Tweet[] = [];
   const after: Tweet[] = [];
   const replies: Tweet[][] = [];
+  const related: Tweet[][] = [];
   let cursor: string | undefined;
 
   for (const instructionValue of instructions) {
@@ -55,11 +59,17 @@ export function parseConversation(value: unknown, tweetId: string): Conversation
         else before.push(tweet);
       } else if (entryId.startsWith("conversationthread")) {
         const thread = parseThread(entry);
-        if (!thread.tweets.length || thread.related) continue;
-        if (thread.self) after.push(...thread.tweets);
-        else replies.push(thread.tweets);
+        if (!thread.tweets.length) continue;
+        if (thread.related) {
+          related.push(thread.tweets);
+        } else if (thread.self) {
+          after.push(...thread.tweets);
+        } else {
+          replies.push(thread.tweets);
+        }
       } else if (entryId.startsWith("tweetdetailrelatedtweets")) {
-        continue;
+        const thread = parseThread(entry);
+        if (thread.tweets.length) related.push(thread.tweets);
       } else if (entryId.startsWith("cursor-bottom")) {
         cursor = firstString(entry, [
           ["content", "value"],
@@ -71,7 +81,7 @@ export function parseConversation(value: unknown, tweetId: string): Conversation
   }
 
   if (!focal) throw new TweetNotFoundError();
-  return { tweet: focal, before, after, replies, cursor: cursor || undefined };
+  return { tweet: focal, before, after, replies, related, cursor: cursor || undefined };
 }
 
 export class TweetNotFoundError extends Error {
