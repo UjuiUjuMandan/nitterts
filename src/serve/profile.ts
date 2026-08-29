@@ -1,4 +1,4 @@
-import { renderErrorPage, renderProfilePage } from "../render/profile";
+import { renderErrorPage, renderProfilePage, requestPath } from "../render/profile";
 import { MEDIA_VIEWS, preferencesFromRequest, type MediaView } from "../preferences";
 import { fetchProfile, XApiError } from "../x/client";
 import { ProfileNotFoundError } from "../x/profile";
@@ -14,7 +14,7 @@ export async function serveProfilePage(
 ): Promise<Response> {
   const preferences = preferencesFromRequest(request);
   if (!/^[A-Za-z0-9_]{1,15}$/.test(username)) {
-    return html(renderErrorPage("Invalid username", 400), 400);
+    return html(renderErrorPage("Invalid username", 400, requestPath(request)), 400);
   }
 
   const url = new URL(request.url);
@@ -66,7 +66,7 @@ export async function serveProfilePage(
         error: error instanceof Error ? error.message : String(error),
       }),
     );
-    return html(renderErrorPage(notFound ? "User not found" : "Unable to load profile", status), status);
+    return html(renderErrorPage(notFound ? "User not found" : "Unable to load profile", status, requestPath(request)), status);
   }
 }
 

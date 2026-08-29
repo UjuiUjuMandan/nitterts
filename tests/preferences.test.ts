@@ -278,6 +278,8 @@ describe("preferences", () => {
     expect(status).not.toContain('class="replies"');
     const statusWithReplies = renderStatusPage({ tweet: tweet("2"), before: [], after: [], replies: [[tweet("3")]], related: [] }, { ...preferences, hideReplies: false });
     expect(statusWithReplies).toContain('class="timeline-item tweet thread-last"');
+    expect(statusWithReplies).toContain('class="icon-bird" title="Open in X" href="https://x.com/alice/status/2"');
+    expect(statusWithReplies).toContain('/settings?referer=%2Falice%2Fstatus%2F2%23m');
 
     const videoTweet = { ...tweet("4"), media: [{ kind: "video" as const, url: "https://video.twimg.com/video.mp4", preview: "https://pbs.twimg.com/video.jpg", alt: "" }] };
     const disabledVideo = renderTweet(videoTweet, false, preferences);

@@ -9,3 +9,4 @@ public/css/fontello.css
 public/css/style.css
 public/css/themes/
 public/js/
+src/generated/version.ts

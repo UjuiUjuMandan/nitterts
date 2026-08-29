@@ -78,7 +78,7 @@ export function renderSearchPage(
   <link rel="stylesheet" href="/css/style.css">${themeLink(preferences)}${headScripts(preferences)}
 </head>
 <body${bodyClass(preferences)}>
-  ${renderNavbar("", currentPath)}
+  ${renderNavbar("", currentPath, xSearchUrl(search))}
   <div class="container">${main}</div>
 </body>
 </html>`;
@@ -141,6 +141,25 @@ function searchParams(search: SearchPage): URLSearchParams {
   if (search.until) params.set("until", search.until);
   if (search.minLikes) params.set("min_faves", search.minLikes);
   return params;
+}
+
+export function xSearchUrl(search: SearchPage): string {
+  const terms: string[] = [];
+  if (search.kind !== "users") {
+    if (search.username) terms.push(`(from:${search.username})`);
+    if (search.username && search.kind === "media") terms.push("(filter:self_threads OR -filter:replies)");
+    terms.push("include:nativeretweets");
+    if (search.since) terms.push(`since:${search.since}`);
+    if (search.until) terms.push(`until:${search.until}`);
+    if (search.minLikes) terms.push(`min_faves:${search.minLikes}`);
+  }
+  if (search.query) terms.push(search.query);
+  const params = new URLSearchParams({
+    f: search.kind === "users" ? "user" : "live",
+    q: terms.filter(Boolean).join(" "),
+    src: "typed_query",
+  });
+  return `https://x.com/search?${params}`;
 }
 
 function renderListResult(result: SearchList): string {

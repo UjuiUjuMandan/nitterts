@@ -130,14 +130,26 @@ export function replaceUrl(url: string, preferences: PagePreferences): string {
   return url;
 }
 
-export function renderErrorPage(message: string, status: number): string {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${status} | nitter</title><link rel="stylesheet" href="/css/fontello.css"><link rel="stylesheet" href="/css/style.css"></head><body>${renderNavbar()}<div class="container"><main class="panel-container"><section class="error-panel"><h1>${status}</h1><p>${escapeHtml(message)}</p></section></main></div></body></html>`;
+export function renderErrorPage(message: string, status: number, currentPath = "", canonical?: string): string {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${status} | nitter</title><link rel="stylesheet" href="/css/fontello.css"><link rel="stylesheet" href="/css/style.css"></head><body>${renderNavbar("", currentPath, canonical)}<div class="container"><main class="panel-container"><section class="error-panel"><h1>${status}</h1><p>${escapeHtml(message)}</p></section></main></div></body></html>`;
 }
 
-export function renderNavbar(rss = "", currentPath = ""): string {
+export function requestPath(request: Request): string {
+  const url = new URL(request.url);
+  return `${url.pathname}${url.search}`;
+}
+
+export function renderNavbar(rss = "", currentPath = "", canonical = xUrl(currentPath || "/")): string {
   const rssLink = rss ? `<a class="icon-rss" title="RSS Feed" href="${escapeAttribute(rss)}/rss"></a>` : "";
   const settings = currentPath ? `/settings?referer=${encodeURIComponent(currentPath)}` : "/settings";
-  return `<nav><div class="inner-nav"><div class="nav-item"><a class="site-name" href="/">nitter</a></div><a href="/"><img class="site-logo" src="/logo.png" alt="Logo"></a><div class="nav-item right"><a class="icon-search" title="Search" href="/search"></a>${rssLink}<a class="icon-cog" title="Preferences" href="${escapeAttribute(settings)}"></a></div></div></nav>`;
+  return `<nav><div class="inner-nav"><div class="nav-item"><a class="site-name" href="/">nitter</a></div><a href="/"><img class="site-logo" src="/logo.png" alt="Logo"></a><div class="nav-item right"><a class="icon-search" title="Search" href="/search"></a>${rssLink}<a class="icon-bird" title="Open in X" href="${escapeAttribute(canonical)}"></a><a href="https://liberapay.com/zedeus" title="Donate on Liberapay">${LIBERAPAY_ICON}</a><a class="icon-info" title="About" href="/about"></a><a class="icon-cog" title="Preferences" href="${escapeAttribute(settings)}"></a></div></div></nav>`;
+}
+
+function xUrl(path: string): string {
+  const url = new URL(path, "https://x.com");
+  url.search = "";
+  url.hash = "";
+  return url.toString();
 }
 
 export function renderProfileCard(profile: Profile, preferences: PagePreferences = { ...DEFAULT_PREFERENCES }): string {
@@ -401,3 +413,5 @@ const HTML_ESCAPES: Record<string, string> = {
   '"': "&quot;",
   "'": "&#39;",
 };
+
+const LIBERAPAY_ICON = '<svg class="lp" viewBox="0 0 40.6 52.3" aria-label="Liberapay"><g transform="matrix(0.83,0,0,0.83,-158,-261)"><path d="m202.5,366c-3.1 0-5.5-0.4-7.3-1.2-1.8-0.8-3-1.9-3.8-3.3-0.8-1.4-1.1-3-1.1-4.8 0-1.8 0.3-3.7 0.8-5.8l8.3-34.8 10.2-1.6-9.1 37.8c-0.2 0.8-0.3 1.5-0.3 2.2 0 0.7 0.1 1.2 0.4 1.7 0.3 0.5 0.7 0.9 1.3 1.2 0.6 0.3 1.5 0.5 2.7 0.6l-2 8.1"/><path d="m239.2 344.3c0 3.2-0.5 6.1-1.6 8.8-1 2.6-2.5 4.9-4.4 6.9-1.9 1.9-4.1 3.4-6.7 4.5-2.6 1.1-5.4 1.6-8.5 1.6-1.5 0-3-0.1-4.5-0.4l-3 11.9h-9.7l10.9-45.4c1.7-0.5 3.7-1 6-1.4 2.3-0.4 4.7-0.6 7.3-0.6 2.4 0 4.6 0.4 6.3 1.1 1.8 0.7 3.2 1.8 4.4 3 1.1 1.3 2 2.8 2.5 4.5 0.5 1.7 0.8 3.6 0.8 5.5m-23.8 13.4c0.7 0.2 1.7 0.3 2.8 0.3 1.7 0 3.3-0.3 4.7-1 1.4-0.6 2.6-1.5 3.6-2.7 1-1.1 1.7-2.5 2.3-4.1 0.5-1.6 0.8-3.4 0.8-5.3 0-1.9-0.4-3.5-1.2-4.8-0.8-1.3-2.3-2-4.3-2-1.4 0-2.7 0.1-3.9 0.4l-4.6 19.1"/></g></svg>';

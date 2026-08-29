@@ -1,5 +1,5 @@
 import { renderListPage } from "../render/list";
-import { renderErrorPage } from "../render/profile";
+import { renderErrorPage, requestPath } from "../render/profile";
 import { renderListRss } from "../render/rss";
 import { preferencesFromRequest } from "../preferences";
 import { XApiError } from "../x/client";
@@ -13,7 +13,7 @@ export async function serveListPage(
   tab: "tweets" | "members",
 ): Promise<Response> {
   const preferences = preferencesFromRequest(request);
-  if (!/^\d{1,20}$/.test(id)) return html(renderErrorPage("Invalid list ID", 400), 400);
+  if (!/^\d{1,20}$/.test(id)) return html(renderErrorPage("Invalid list ID", 400, requestPath(request)), 400);
   const cursor = new URL(request.url).searchParams.get("cursor") || undefined;
   try {
     if (tab === "members") {
@@ -35,13 +35,13 @@ export async function serveListPage(
     });
     return html(renderListPage(list, tab, timeline, undefined, preferences, cursor), 200);
   } catch (error) {
-    return listError(error, { id, tab });
+    return listError(error, { id, tab }, request);
   }
 }
 
 export async function serveListSlugRedirect(request: Request, env: Env, username: string, slug: string): Promise<Response> {
   if (!/^[A-Za-z0-9_]{1,15}$/.test(username) || username.toLowerCase() === "i" || !slug || slug.length > 100) {
-    return html(renderErrorPage("Invalid list", 400), 400);
+    return html(renderErrorPage("Invalid list", 400, requestPath(request)), 400);
   }
   try {
     const list = await withCookieSession(env.NITTER_SESSIONS, (session) => fetchListBySlug(username, slug, session));
@@ -50,12 +50,12 @@ export async function serveListSlugRedirect(request: Request, env: Env, username
     if (cursor) target.searchParams.set("cursor", cursor);
     return Response.redirect(target.toString(), 302);
   } catch (error) {
-    return listError(error, { username, slug });
+    return listError(error, { username, slug }, request);
   }
 }
 
 export async function serveListRss(request: Request, env: Env, id: string): Promise<Response> {
-  if (!/^\d{1,20}$/.test(id)) return html(renderErrorPage("Invalid list ID", 400), 400);
+  if (!/^\d{1,20}$/.test(id)) return html(renderErrorPage("Invalid list ID", 400, requestPath(request)), 400);
   try {
     const { list, timeline } = await withCookieSession(env.NITTER_SESSIONS, async (session) => {
       const [list, timeline] = await Promise.all([
@@ -71,13 +71,13 @@ export async function serveListRss(request: Request, env: Env, id: string): Prom
     if (timeline.tweets[0]?.id) headers["min-id"] = timeline.tweets[0].id;
     return new Response(renderListRss(list, timeline, new URL(request.url).origin), { status: 200, headers });
   } catch (error) {
-    return listError(error, { id, kind: "rss" });
+    return listError(error, { id, kind: "rss" }, request);
   }
 }
 
 export async function serveListSlugRssRedirect(request: Request, env: Env, username: string, slug: string): Promise<Response> {
   if (!/^[A-Za-z0-9_]{1,15}$/.test(username) || username.toLowerCase() === "i" || !slug || slug.length > 100) {
-    return html(renderErrorPage("Invalid list", 400), 400);
+    return html(renderErrorPage("Invalid list", 400, requestPath(request)), 400);
   }
   try {
     const list = await withCookieSession(env.NITTER_SESSIONS, (session) => fetchListBySlug(username, slug, session));
@@ -86,11 +86,11 @@ export async function serveListSlugRssRedirect(request: Request, env: Env, usern
     if (cursor) target.searchParams.set("cursor", cursor);
     return Response.redirect(target.toString(), 302);
   } catch (error) {
-    return listError(error, { username, slug, kind: "rss" });
+    return listError(error, { username, slug, kind: "rss" }, request);
   }
 }
 
-function listError(error: unknown, details: Record<string, string>): Response {
+function listError(error: unknown, details: Record<string, string>, request: Request): Response {
   const notFound = error instanceof ListNotFoundError;
   const status = notFound ? 404 : error instanceof XApiError ? 502 : 500;
   console.error(JSON.stringify({
@@ -99,7 +99,7 @@ function listError(error: unknown, details: Record<string, string>): Response {
     upstreamStatus: error instanceof XApiError ? error.status : undefined,
     error: error instanceof Error ? error.message : String(error),
   }));
-  return html(renderErrorPage(notFound ? "List not found" : "Unable to load list", status), status);
+  return html(renderErrorPage(notFound ? "List not found" : "Unable to load list", status, requestPath(request)), status);
 }
 
 function html(body: string, status: number): Response {

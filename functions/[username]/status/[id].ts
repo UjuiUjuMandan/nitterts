@@ -1,4 +1,4 @@
-import { renderErrorPage } from "../../../src/render/profile";
+import { renderErrorPage, requestPath } from "../../../src/render/profile";
 import { renderStatusPage } from "../../../src/render/status";
 import { preferencesFromRequest } from "../../../src/preferences";
 import { fetchConversation, TweetNotFoundError } from "../../../src/x/conversation";
@@ -16,7 +16,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     typeof id !== "string" ||
     !/^\d{1,19}$/.test(id)
   ) {
-    return html(renderErrorPage("Invalid post URL", 400), 400);
+    return html(renderErrorPage("Invalid post URL", 400, requestPath(context.request)), 400);
   }
 
   try {
@@ -36,7 +36,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         error: error instanceof Error ? error.message : String(error),
       }),
     );
-    return html(renderErrorPage(notFound ? "Post not found" : "Unable to load post", status), status);
+    return html(renderErrorPage(notFound ? "Post not found" : "Unable to load post", status, requestPath(context.request)), status);
   }
 };
 

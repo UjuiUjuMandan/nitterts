@@ -1,5 +1,5 @@
-import { renderErrorPage } from "../render/profile";
-import { renderSearchPage } from "../render/search";
+import { renderErrorPage, requestPath } from "../render/profile";
+import { renderSearchPage, xSearchUrl } from "../render/search";
 import { preferencesFromRequest } from "../preferences";
 import { fetchProfile, XApiError } from "../x/client";
 import { ProfileNotFoundError, type Profile } from "../x/profile";
@@ -20,12 +20,8 @@ import { fetchOptionalAccountInfo } from "./account-info";
 
 export async function serveSearchPage(request: Request, env: Env, username?: string): Promise<Response> {
   const preferences = preferencesFromRequest(request);
-  if (username && !/^[A-Za-z0-9_]{1,15}$/.test(username)) {
-    return html(renderErrorPage("Invalid username", 400), 400);
-  }
   const url = new URL(request.url);
   const query = url.searchParams.get("q")?.trim() ?? "";
-  if (query.length > 500) return html(renderErrorPage("Search input too long", 400), 400);
   const requestedKind = url.searchParams.get("f");
   const globalKind: SearchKind = requestedKind === "top" || requestedKind === "media"
     || requestedKind === "users" || requestedKind === "user"
@@ -38,6 +34,10 @@ export async function serveSearchPage(request: Request, env: Env, username?: str
   const until = validDate(url.searchParams.get("until"));
   const minLikes = validNumber(url.searchParams.get("min_faves"));
   const search = { query, kind, cursor, username, since, until, minLikes };
+  if (username && !/^[A-Za-z0-9_]{1,15}$/.test(username)) {
+    return html(renderErrorPage("Invalid username", 400, requestPath(request), xSearchUrl(search)), 400);
+  }
+  if (query.length > 500) return html(renderErrorPage("Search input too long", 400, requestPath(request), xSearchUrl(search)), 400);
   if (!query && ((kind === "users" || kind === "lists") || (!username && !since && !until && !minLikes))) {
     return html(renderSearchPage(search, undefined, undefined, [], preferences), 200);
   }
@@ -87,7 +87,7 @@ export async function serveSearchPage(request: Request, env: Env, username?: str
     const notFound = error instanceof ProfileNotFoundError;
     const status = notFound ? 404 : error instanceof XApiError ? 502 : 500;
     console.error(JSON.stringify({ message: "search request failed", username, query, kind, upstreamStatus: error instanceof XApiError ? error.status : undefined, error: error instanceof Error ? error.message : String(error) }));
-    return html(renderErrorPage(notFound ? "User not found" : "Unable to search", status), status);
+    return html(renderErrorPage(notFound ? "User not found" : "Unable to search", status, requestPath(request), xSearchUrl(search)), status);
   }
 }
 

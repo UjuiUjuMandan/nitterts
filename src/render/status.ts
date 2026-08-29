@@ -32,7 +32,7 @@ export function renderStatusPage(conversation: Conversation, preferences: PagePr
   <link rel="stylesheet" href="/css/style.css">${themeLink(preferences)}${headScripts(preferences)}
 </head>
 <body${bodyClass(preferences)}>
-  ${renderNavbar("", permalink)}
+  ${renderNavbar("", `${permalink}#m`, `https://x.com${permalink}`)}
   <div class="container">
     <main class="conversation">
       <section class="main-thread">

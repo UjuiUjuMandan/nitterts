@@ -5,14 +5,17 @@
   "type": "module",
   "scripts": {
     "init:upstream": "git submodule update --init --recursive",
+    "generate:version": "node scripts/generate-version.mjs",
     "build:assets": "mkdir -p .sass-cache public/css/themes public/js && cp nitter/src/sass/include/_mixins.css .sass-cache/_mixins.scss && sass --load-path=.sass-cache --load-path=nitter/src/sass/include --no-source-map --silence-deprecation=import --silence-deprecation=global-builtin nitter/src/sass/index.scss public/css/style.css && cp nitter/public/css/fontello.css public/css/fontello.css && rm -f public/css/themes/*.css public/js/*.js && cp nitter/public/css/themes/*.css public/css/themes/ && cp nitter/public/js/hls.min.js nitter/public/js/hlsPlayback.js nitter/public/js/infiniteScroll.js public/js/",
-    "prebuild": "npm run init:upstream",
+    "prebuild": "npm run init:upstream && npm run generate:version",
     "build": "npm run build:assets",
     "predev": "npm run build",
     "dev": "wrangler pages dev public",
     "predeploy": "npm run build",
     "deploy": "wrangler pages deploy",
+    "pretest": "npm run generate:version",
     "test": "vitest run",
+    "pretypecheck": "npm run generate:version",
     "typecheck": "tsc --noEmit",
     "types": "wrangler types"
   },

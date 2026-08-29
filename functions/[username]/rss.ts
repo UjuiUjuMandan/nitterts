@@ -1,4 +1,4 @@
-import { renderErrorPage } from "../../src/render/profile";
+import { renderErrorPage, requestPath } from "../../src/render/profile";
 import { renderTimelineRss } from "../../src/render/rss";
 import { fetchProfile, XApiError } from "../../src/x/client";
 import { ProfileNotFoundError } from "../../src/x/profile";
@@ -8,7 +8,7 @@ import { fetchProfileTimeline } from "../../src/x/timeline";
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const username = context.params.username;
   if (typeof username !== "string" || !/^[A-Za-z0-9_]{1,15}$/.test(username)) {
-    return new Response(renderErrorPage("Invalid username", 400), {
+    return new Response(renderErrorPage("Invalid username", 400, requestPath(context.request)), {
       status: 400,
       headers: { "content-type": "text/html; charset=utf-8" },
     });
@@ -43,7 +43,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         error: error instanceof Error ? error.message : String(error),
       }),
     );
-    return new Response(renderErrorPage(notFound ? "User not found" : "Unable to load feed", status), {
+    return new Response(renderErrorPage(notFound ? "User not found" : "Unable to load feed", status, requestPath(context.request)), {
       status,
       headers: { "content-type": "text/html; charset=utf-8" },
     });

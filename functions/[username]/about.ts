@@ -1,5 +1,5 @@
 import { renderAboutPage } from "../../src/render/about";
-import { renderErrorPage } from "../../src/render/profile";
+import { renderErrorPage, requestPath } from "../../src/render/profile";
 import { preferencesFromRequest } from "../../src/preferences";
 import { fetchOptionalAccountInfo } from "../../src/serve/account-info";
 import { fetchProfile, XApiError } from "../../src/x/client";
@@ -10,7 +10,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const preferences = preferencesFromRequest(context.request);
   const username = context.params.username;
   if (typeof username !== "string" || !/^[A-Za-z0-9_]{1,15}$/.test(username)) {
-    return html(renderErrorPage("Invalid username", 400), 400);
+    return html(renderErrorPage("Invalid username", 400, requestPath(context.request)), 400);
   }
   try {
     const profile = await withCookieSession(context.env.NITTER_SESSIONS, async (session) => {
@@ -23,7 +23,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     const notFound = error instanceof ProfileNotFoundError;
     const status = notFound ? 404 : error instanceof XApiError ? 502 : 500;
     console.error(JSON.stringify({ message: "about account request failed", username, upstreamStatus: error instanceof XApiError ? error.status : undefined, error: error instanceof Error ? error.message : String(error) }));
-    return html(renderErrorPage(notFound ? "User not found" : "Unable to load account details", status), status);
+    return html(renderErrorPage(notFound ? "User not found" : "Unable to load account details", status, requestPath(context.request)), status);
   }
 };
 
