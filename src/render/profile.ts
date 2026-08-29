@@ -1,5 +1,5 @@
 import { mediaProxyUrl } from "../media";
-import { bodyClass, DEFAULT_PREFERENCES, type PagePreferences } from "../preferences";
+import { bodyClass, DEFAULT_PREFERENCES, type MediaView, type PagePreferences } from "../preferences";
 import type { Profile } from "../x/profile";
 import type { PhotoRailItem, ProfileTab, Timeline, Tweet, TweetLink, VerifiedType } from "../x/timeline";
 
@@ -16,6 +16,7 @@ export function renderProfilePage(
   photos: PhotoRailItem[] = [],
   preferences: PagePreferences = { ...DEFAULT_PREFERENCES },
   currentCursor?: string,
+  mediaView: MediaView = preferences.mediaView,
 ): string {
   const title = `${profile.name} (@${profile.username}) | nitter`;
   const base = `/${encodeURIComponent(profile.username)}`;
@@ -25,14 +26,25 @@ export function renderProfilePage(
     .filter((tweet, index, all) => all.findIndex((item) => item.id === tweet.id) === index)
     .map((tweet) => renderTweet(tweet, false, preferences))
     .join("");
+  const activeMediaView = tab === "media" ? mediaView : "timeline";
+  const moreQuery = [`cursor=${encodeURIComponent(timeline.cursor ?? "")}`];
+  if (tab === "media") moreQuery.push(`view=${activeMediaView}`);
   const more = timeline.cursor
-    ? `<div class="show-more"><a href="${base}${TAB_PATHS[tab]}?cursor=${encodeURIComponent(timeline.cursor)}">Load more</a></div>`
+    ? `<div class="show-more"><a href="${escapeAttribute(`${base}${TAB_PATHS[tab]}?${moreQuery.join("&")}`)}">Load more</a></div>`
     : "";
   const timelineBody = profile.suspended
     ? '<div class="timeline-header timeline-message"><h2>This account is suspended.</h2></div>'
     : profile.protected
       ? `<div class="timeline-header timeline-message"><h2>This account's tweets are protected.</h2><p>Only confirmed followers have access to @${escapeHtml(profile.username)}'s tweets.</p></div>`
       : tweets || '<div class="timeline-header timeline-message"><h2>No tweets found.</h2></div>';
+  const gallery = tab === "media" && activeMediaView === "gallery";
+  const renderedTimeline = gallery && tweets
+    ? `<div class="gallery-masonry${preferences.compactGallery ? " compact" : ""}" data-col-size="${preferences.gallerySize}">${timelineBody}</div>`
+    : timelineBody;
+  const currentQuery: string[] = [];
+  if (currentCursor) currentQuery.push(`cursor=${encodeURIComponent(currentCursor)}`);
+  if (tab === "media") currentQuery.push(`view=${activeMediaView}`);
+  const currentPath = `${base}${TAB_PATHS[tab]}${currentQuery.length ? `?${currentQuery.join("&")}` : ""}`;
 
   return `<!doctype html>
 <html lang="en">
@@ -48,25 +60,30 @@ export function renderProfilePage(
   <link rel="alternate" type="application/rss+xml" href="/${encodeURIComponent(profile.username)}/rss" title="RSS feed">
 </head>
 <body${bodyClass(preferences)}>
-  ${renderNavbar(base, `${base}${TAB_PATHS[tab]}${currentCursor ? `?cursor=${encodeURIComponent(currentCursor)}` : ""}`)}
+  ${renderNavbar(base, currentPath)}
   <div class="container">
-    <main class="profile-tabs">
-      ${profile.banner && !preferences.hideBanner ? `<div class="profile-banner"><a href="${escapeAttribute(mediaProxyUrl(profile.banner))}" target="_blank" rel="noopener" aria-label="Open banner image"><img src="${escapeAttribute(mediaProxyUrl(profile.banner))}" alt=""></a></div>` : ""}
-      <aside class="profile-tab${preferences.stickyProfile ? " sticky" : ""}">${renderProfileCard(profile)}${renderPhotoRail(profile, photos)}</aside>
-      <section class="timeline-container">
-        <ul class="tab">
+    <main class="profile-tabs${gallery ? " media-only" : ""}">
+      ${gallery || !profile.banner || preferences.hideBanner ? "" : `<div class="profile-banner"><a href="${escapeAttribute(mediaProxyUrl(profile.banner))}" target="_blank" rel="noopener" aria-label="Open banner image"><img src="${escapeAttribute(mediaProxyUrl(profile.banner))}" alt=""></a></div>`}
+      ${gallery ? "" : `<aside class="profile-tab${preferences.stickyProfile ? " sticky" : ""}">${renderProfileCard(profile)}${renderPhotoRail(profile, photos)}</aside>`}
+      <section class="timeline-container${gallery ? " media-only" : ""}">
+        ${gallery ? "" : `<ul class="tab">
           <li class="tab-item${tab === "tweets" ? " active" : ""}"><a href="${base}">Tweets</a></li>
           <li class="tab-item wide${tab === "replies" ? " active" : ""}"><a href="${base}/with_replies">Tweets &amp; Replies</a></li>
           <li class="tab-item${tab === "media" ? " active" : ""}"><a href="${base}/media">Media</a></li>
           <li class="tab-item"><a href="${base}/search">Search</a></li>
-        </ul>
-        <div class="timeline">${timelineBody}</div>
+        </ul>`}
+        ${tab === "media" ? renderMediaViewTabs(base, activeMediaView) : ""}
+        <div class="timeline${tab === "media" ? ` media-${activeMediaView}-view` : ""}">${renderedTimeline}</div>
         ${profile.protected || profile.suspended ? "" : more}
       </section>
     </main>
   </div>
 </body>
 </html>`;
+}
+
+function renderMediaViewTabs(base: string, active: MediaView): string {
+  return `<ul class="tab media-view-tabs">${(["timeline", "grid", "gallery"] as const).map((view) => `<li class="tab-item${active === view ? " active" : ""}"><a href="${base}/media?view=${view}">${view[0]!.toUpperCase()}${view.slice(1)}</a></li>`).join("")}</ul>`;
 }
 
 export function renderErrorPage(message: string, status: number): string {

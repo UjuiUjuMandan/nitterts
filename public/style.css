@@ -16,6 +16,7 @@
   --border-grey: #3e3e35;
   --accent: #ff6c60;
   --accent-light: #ffaca0;
+  --accent-border: #ff6c6091;
   --verified-blue: #1da1f2;
 }
 
@@ -418,6 +419,25 @@ nav {
   max-width: none;
 }
 
+.profile-tabs.media-only {
+  max-width: none;
+  width: 100%;
+}
+
+.profile-tabs.media-only .timeline-container {
+  box-sizing: border-box;
+  float: none;
+  max-width: none;
+  padding: 0 10px;
+  width: 100%;
+}
+
+.profile-tabs.media-only .timeline-container > .tab {
+  max-width: 900px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .tab {
   display: flex;
   align-items: center;
@@ -473,6 +493,134 @@ nav {
 
 .timeline-item:hover {
   background: var(--bg-hover);
+}
+
+.timeline.media-grid-view > :not(:first-child),
+.timeline.media-gallery-view > :not(:first-child) {
+  border-top: 0;
+}
+
+.timeline.media-grid-view .tweet-header,
+.timeline.media-grid-view .replying-to,
+.timeline.media-grid-view .retweet-header,
+.timeline.media-grid-view .pinned,
+.timeline.media-grid-view .tweet-stats,
+.timeline.media-grid-view .tweet-content,
+.timeline.media-grid-view .quote,
+.timeline.media-gallery-view .gallery-masonry.compact .tweet-header,
+.timeline.media-gallery-view .gallery-masonry.compact .replying-to,
+.timeline.media-gallery-view .gallery-masonry.compact .retweet-header,
+.timeline.media-gallery-view .gallery-masonry.compact .pinned,
+.timeline.media-gallery-view .gallery-masonry.compact .tweet-stats,
+.timeline.media-gallery-view .gallery-masonry.compact .tweet-content,
+.timeline.media-gallery-view .gallery-masonry.compact .quote {
+  display: none;
+}
+
+.timeline.media-grid-view {
+  display: grid;
+  gap: 4px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.timeline.media-grid-view > .timeline-header {
+  grid-column: 1 / -1;
+}
+
+.timeline.media-grid-view .timeline-item {
+  padding: 0;
+}
+
+.timeline.media-grid-view .tweet-link {
+  z-index: 2;
+}
+
+.timeline.media-grid-view .tweet-body {
+  aspect-ratio: 1 / 1;
+  height: 100%;
+  margin-left: 0;
+  padding: 0;
+  position: relative;
+}
+
+.timeline.media-grid-view .attachments {
+  border-radius: 0;
+  height: 100%;
+  margin: 0;
+  max-height: none;
+  width: 100%;
+}
+
+.timeline.media-grid-view .attachment {
+  min-height: 0;
+}
+
+.timeline.media-grid-view .attachment img,
+.timeline.media-grid-view .attachment video {
+  height: 100%;
+  max-height: none;
+  object-fit: cover;
+  width: 100%;
+}
+
+.timeline.media-grid-view .timeline-item:hover {
+  opacity: 0.85;
+}
+
+.timeline.media-gallery-view .gallery-masonry {
+  column-gap: 10px;
+  column-width: clamp(190px, 22vw, 350px);
+  margin: 10px 0;
+}
+
+.timeline.media-gallery-view .gallery-masonry[data-col-size="small"] {
+  column-width: max(130px, 11vw);
+}
+
+.timeline.media-gallery-view .gallery-masonry[data-col-size="large"] {
+  column-width: clamp(350px, 22vw, 480px);
+}
+
+.timeline.media-gallery-view .timeline-item {
+  break-inside: avoid;
+  flex-direction: column;
+  margin-bottom: 10px;
+  padding: 0;
+}
+
+.timeline.media-gallery-view .tweet-body {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  margin-left: 0;
+  padding: 10px;
+}
+
+.timeline.media-gallery-view .tweet-body > .attachments {
+  align-self: stretch;
+  border-radius: 0;
+  margin: -10px -10px 10px;
+  max-height: none;
+  order: -1;
+  width: auto;
+}
+
+.timeline.media-gallery-view .attachment,
+.timeline.media-gallery-view .attachment img,
+.timeline.media-gallery-view .attachment video {
+  max-height: none;
+}
+
+.timeline.media-gallery-view .gallery-masonry.compact .tweet-body {
+  padding: 0;
+}
+
+.timeline.media-gallery-view .gallery-masonry.compact .tweet-body > .attachments {
+  margin: 0;
+}
+
+.timeline.media-gallery-view .tweet-content {
+  margin: 3px 0;
 }
 
 .tweet-body {
@@ -1084,59 +1232,140 @@ nav {
   background: var(--bg-panel);
 }
 
-.preferences-page {
-  width: min(560px, calc(100% - 20px));
-  margin: 12px auto;
+fieldset {
+  border: 0;
+  padding: 0;
+  margin-top: -0.6em;
 }
 
-.preferences-panel {
-  padding: 18px;
-  background: var(--bg-panel);
+legend {
+  width: 100%;
+  padding: 0.6em 0 0.3em 0;
+  border: 0;
+  font-size: 16px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border-grey);
+  margin-bottom: 8px;
 }
 
-.preferences-panel h1 {
-  margin: 0 0 14px;
-  color: var(--accent);
-  font-size: 22px;
+.overlay-panel {
+  max-width: 600px;
+  width: 100%;
+  margin: 0 auto;
+  margin-top: 10px;
+  background: var(--bg-overlays);
+  padding: 10px 15px;
+  align-self: start;
 }
 
-.preference-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 10px 0;
-  border-top: 1px solid var(--border-grey);
+.overlay-panel p {
+  word-break: break-word;
+}
+
+.checkbox {
+  position: absolute;
+  top: 1px;
+  right: 0;
+  height: 17px;
+  width: 17px;
+  background: var(--bg-elements);
+  border: 1px solid var(--accent-border);
+}
+
+.checkbox:after {
+  content: "";
+  position: absolute;
+  display: none;
+}
+
+.checkbox-container {
+  display: block;
+  position: relative;
+  margin-bottom: 5px;
   cursor: pointer;
+  user-select: none;
+  padding-right: 22px;
 }
 
-.preference-row input {
-  margin-top: 3px;
+.checkbox-container input {
+  position: absolute;
+  opacity: 0;
+  cursor: pointer;
+  height: 0;
+  width: 0;
 }
 
-.preference-row strong,
-.preference-row small {
+.checkbox-container input:checked ~ .checkbox:after {
   display: block;
 }
 
-.preference-row small {
-  margin-top: 2px;
-  color: var(--fg-faded);
+.checkbox-container:hover input ~ .checkbox {
+  border-color: var(--accent);
 }
 
-.preferences-save,
-.preferences-reset {
-  margin-top: 14px;
-  padding: 7px 12px;
-  border: 1px solid var(--accent);
-  border-radius: 3px;
+.checkbox-container:active input ~ .checkbox {
+  border-color: var(--accent-light);
+}
+
+.checkbox-container input:focus-visible ~ .checkbox {
+  outline: 2px solid var(--accent-light);
+  outline-offset: 2px;
+}
+
+.checkbox-container .checkbox:after {
+  left: 2px;
+  bottom: 0;
+  font-size: 13px;
+  font-family: fontello;
+  content: "\e811";
+}
+
+.pref-group {
+  display: inline;
+}
+
+.preferences .note {
+  border-top: 1px solid var(--border-grey);
+  border-bottom: 1px solid var(--border-grey);
+  padding: 6px 0 8px 0;
+  margin-bottom: 8px;
+  margin-top: 16px;
+}
+
+.preferences .bookmark-note {
+  margin: 0;
+  margin-bottom: 10px;
+}
+
+.preferences button {
+  margin: 6px 0 3px 0;
+  padding: 3px 6px;
+  border: 1px solid var(--accent-border);
   background: var(--bg-elements);
   color: var(--fg-color);
+  font-size: 14px;
   cursor: pointer;
+  float: right;
 }
 
-.preferences-reset {
-  border-color: var(--border-grey);
-  color: var(--fg-faded);
+.preferences button:hover {
+  border-color: var(--accent);
+}
+
+.preferences button:active {
+  border-color: var(--accent-light);
+}
+
+.preferences label {
+  padding-right: 150px;
+}
+
+.preferences .pref-group {
+  display: block;
+}
+
+.preferences .pref-reset {
+  float: left;
 }
 
 .about-account-header {
@@ -1257,6 +1486,17 @@ nav {
     margin-top: 4px;
   }
 
+  .profile-tabs.media-only {
+    max-width: none;
+    overflow: visible;
+    width: 100%;
+  }
+
+  .profile-tabs.media-only .timeline-container {
+    padding: 0;
+    width: 100vw;
+  }
+
   .profile-tab {
     position: static !important;
     width: 100%;
@@ -1318,6 +1558,12 @@ nav {
 
   .main-tweet-item .tweet-content {
     font-size: 16px;
+  }
+}
+
+@media (max-width: 520px) {
+  .timeline.media-gallery-view {
+    padding: 8px 0;
   }
 }
 

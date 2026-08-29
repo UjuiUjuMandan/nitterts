@@ -51,6 +51,21 @@ describe("preferences", () => {
     const preferences = { ...DEFAULT_PREFERENCES, hideBanner: true, squareAvatars: true };
     expect(decodePreferences(encodePreferences(preferences))).toEqual(preferences);
     expect(decodePreferences("v2.zzz")).toEqual(DEFAULT_PREFERENCES);
+    expect(decodePreferences("v1.0")).toEqual({
+      stickyNav: false,
+      stickyProfile: false,
+      hideTweetStats: false,
+      hideBanner: false,
+      hidePins: false,
+      hideReplies: false,
+      squareAvatars: false,
+      mp4Playback: false,
+      muteVideos: false,
+      autoplayGifs: false,
+      compactGallery: false,
+      mediaView: "grid",
+      gallerySize: "medium",
+    });
     expect(preferencesFromRequest(new Request("https://nitter.test", { headers: { cookie: `other=x; nitter_prefs=${encodePreferences(preferences)}` } }))).toEqual(preferences);
   });
 
@@ -63,11 +78,11 @@ describe("preferences", () => {
     const saved = await serveSavePreferences(new Request("https://nitter.test/settings", {
       method: "POST",
       headers,
-      body: "stickyNav=on&hideBanner=on&squareAvatars=on&returnTo=%2Falice",
+      body: "stickyNav=on&hideBanner=on&squareAvatars=on&mediaView=Gallery&gallerySize=Large&returnTo=%2Falice",
     }));
     expect(saved.status).toBe(303);
     expect(saved.headers.get("location")).toBe("https://nitter.test/alice");
-    expect(saved.headers.get("set-cookie")).toMatch(/^nitter_prefs=v1\.[0-9a-z]+; Path=\/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure$/);
+    expect(saved.headers.get("set-cookie")).toMatch(/^nitter_prefs=v2\.[0-9a-z]+\.a\.l; Path=\/; Max-Age=31536000; HttpOnly; SameSite=Lax; Secure$/);
 
     const reset = await serveResetPreferences(new Request("https://nitter.test/settings/reset", {
       method: "POST",
@@ -128,6 +143,13 @@ describe("preferences", () => {
     }));
     expect(nullOriginNoFetchSite.status).toBe(403);
 
+    const invalidChoice = await serveSavePreferences(new Request("https://nitter.test/settings", {
+      method: "POST",
+      headers,
+      body: "mediaView=Cards&gallerySize=Medium",
+    }));
+    expect(invalidChoice.status).toBe(400);
+
     const oversized = await serveSavePreferences(new Request("https://nitter.test/settings", {
       method: "POST",
       headers,
@@ -160,8 +182,16 @@ describe("preferences", () => {
     const settings = serveSettingsPage(new Request("https://nitter.test/settings?referer=%2Falice", { headers: { cookie } }));
     const settingsHtml = await settings.text();
     expect(settings.headers.get("cache-control")).toBe("private, no-store");
-    expect(settingsHtml).toContain('name="hideBanner" checked');
-    expect(settingsHtml).toContain('name="returnTo" value="/alice"');
+    expect(settingsHtml).toContain('name="hideBanner" type="checkbox" checked');
+    expect(settingsHtml).toContain('type="hidden" name="referer" value="/alice"');
+    expect(settingsHtml).toContain("<legend>Display</legend>");
+    expect(settingsHtml).toContain("<legend>Media</legend>");
+    expect(settingsHtml).toContain('class="pref-submit" type="submit">Save preferences');
+    expect(settingsHtml).toContain('<form class="pref-reset" method="post" action="/resetprefs">');
+    expect(settingsHtml).toContain('title="stickyNav"');
+    expect(settingsHtml).toContain("Keep navbar fixed to top");
+    expect(settingsHtml).toContain('name="mediaView" id="mediaView"');
+    expect(settingsHtml).toContain('<option value="Grid" selected>Grid</option>');
 
     const html = renderProfilePage(profile, { tweets: [tweet("2"), tweet("1")], pinned: tweet("1", true) }, "tweets", [], preferences);
     expect(html).toContain('<body class="non-sticky-nav">');
@@ -187,5 +217,18 @@ describe("preferences", () => {
 
     const paged = renderProfilePage(profile, { tweets: [] }, "tweets", [], preferences, "page cursor");
     expect(paged).toContain("referer=%2Falice%3Fcursor%3Dpage%2520cursor");
+
+    const mediaTimeline = { tweets: [videoTweet], cursor: "next page" };
+    const grid = renderProfilePage(profile, mediaTimeline, "media", [], preferences);
+    expect(grid).toContain('class="timeline media-grid-view"');
+    expect(grid).toContain('class="tab media-view-tabs"');
+    expect(grid).toContain('/alice/media?cursor=next%20page&amp;view=grid');
+
+    const galleryPreferences = { ...preferences, compactGallery: true, mediaView: "gallery" as const, gallerySize: "large" as const };
+    const gallery = renderProfilePage(profile, mediaTimeline, "media", [], galleryPreferences);
+    expect(gallery).toContain('class="profile-tabs media-only"');
+    expect(gallery).toContain('class="gallery-masonry compact" data-col-size="large"');
+    expect(gallery).not.toContain('class="profile-card"');
+    expect(gallery).not.toContain('class="profile-banner"');
   });
 });

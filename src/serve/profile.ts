@@ -1,5 +1,5 @@
 import { renderErrorPage, renderProfilePage } from "../render/profile";
-import { preferencesFromRequest } from "../preferences";
+import { MEDIA_VIEWS, preferencesFromRequest, type MediaView } from "../preferences";
 import { fetchProfile, XApiError } from "../x/client";
 import { ProfileNotFoundError } from "../x/profile";
 import { withCookieSession } from "../x/sessions";
@@ -17,7 +17,12 @@ export async function serveProfilePage(
     return html(renderErrorPage("Invalid username", 400), 400);
   }
 
-  const cursor = new URL(request.url).searchParams.get("cursor") ?? undefined;
+  const url = new URL(request.url);
+  const cursor = url.searchParams.get("cursor") ?? undefined;
+  const requestedView = url.searchParams.get("view");
+  const mediaView = tab === "media" && MEDIA_VIEWS.includes(requestedView as MediaView)
+    ? requestedView as MediaView
+    : preferences.mediaView;
   try {
     const { profile, timeline, photos } = await withCookieSession(
       env.NITTER_SESSIONS,
@@ -48,7 +53,7 @@ export async function serveProfilePage(
       },
     );
     const basedIn = profile.suspended ? "" : await fetchOptionalBasedIn(env.NITTER_SESSIONS, username);
-    return html(renderProfilePage({ ...profile, basedIn }, timeline, tab, photos, preferences, cursor), 200);
+    return html(renderProfilePage({ ...profile, basedIn }, timeline, tab, photos, preferences, cursor, mediaView), 200);
   } catch (error) {
     const notFound = error instanceof ProfileNotFoundError;
     const status = notFound ? 404 : error instanceof XApiError ? 502 : 500;

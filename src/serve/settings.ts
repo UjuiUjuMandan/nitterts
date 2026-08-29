@@ -1,4 +1,4 @@
-import { clearPreferencesCookie, PREFERENCE_KEYS, preferencesCookie, preferencesFromRequest, type PagePreferences } from "../preferences";
+import { clearPreferencesCookie, GALLERY_SIZES, MEDIA_VIEWS, PREFERENCE_KEYS, preferencesCookie, preferencesFromRequest, type PagePreferences } from "../preferences";
 import { renderSettingsPage } from "../render/settings";
 
 const MAX_BODY_BYTES = 8 * 1024;
@@ -26,7 +26,7 @@ export async function serveSavePreferences(request: Request): Promise<Response> 
   if (rejected) return rejected;
   const params = await readForm(request);
   if (params instanceof Response) return params;
-  const allowed = new Set<string>([...PREFERENCE_KEYS, "returnTo", "referer"]);
+  const allowed = new Set<string>([...PREFERENCE_KEYS, "mediaView", "gallerySize", "returnTo", "referer"]);
   for (const key of params.keys()) {
     if (!allowed.has(key) || params.getAll(key).length !== 1) return new Response("Invalid preference fields", { status: 400 });
   }
@@ -38,9 +38,17 @@ export async function serveSavePreferences(request: Request): Promise<Response> 
     }
     entries.push([key, value !== null]);
   }
-  const preferences = Object.fromEntries(entries) as PagePreferences;
+  const mediaView = normalizedChoice(params.get("mediaView") ?? "grid", MEDIA_VIEWS);
+  const gallerySize = normalizedChoice(params.get("gallerySize") ?? "medium", GALLERY_SIZES);
+  if (!mediaView || !gallerySize) return new Response("Invalid preference value", { status: 400 });
+  const preferences = { ...Object.fromEntries(entries), mediaView, gallerySize } as PagePreferences;
   const returnTo = safeReturnTo(params.get("returnTo") ?? params.get("referer"), effectiveRequestUrl(request)) ?? "/settings";
   return redirectWithCookie(request, returnTo, preferencesCookie(preferences, effectiveRequestUrl(request).protocol === "https:"));
+}
+
+function normalizedChoice<T extends string>(value: string, choices: readonly T[]): T | undefined {
+  const normalized = value.toLowerCase();
+  return choices.find((choice) => choice === normalized);
 }
 
 export async function serveResetPreferences(request: Request): Promise<Response> {

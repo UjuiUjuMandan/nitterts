@@ -9,10 +9,18 @@ export const PREFERENCE_KEYS = [
   "mp4Playback",
   "muteVideos",
   "autoplayGifs",
+  "compactGallery",
 ] as const;
 
 export type PreferenceKey = typeof PREFERENCE_KEYS[number];
-export type PagePreferences = Record<PreferenceKey, boolean>;
+export const MEDIA_VIEWS = ["timeline", "grid", "gallery"] as const;
+export const GALLERY_SIZES = ["small", "medium", "large"] as const;
+export type MediaView = typeof MEDIA_VIEWS[number];
+export type GallerySize = typeof GALLERY_SIZES[number];
+export type PagePreferences = Record<PreferenceKey, boolean> & {
+  mediaView: MediaView;
+  gallerySize: GallerySize;
+};
 
 export const DEFAULT_PREFERENCES: Readonly<PagePreferences> = Object.freeze({
   stickyNav: true,
@@ -25,6 +33,9 @@ export const DEFAULT_PREFERENCES: Readonly<PagePreferences> = Object.freeze({
   mp4Playback: true,
   muteVideos: false,
   autoplayGifs: true,
+  compactGallery: false,
+  mediaView: "grid",
+  gallerySize: "medium",
 });
 
 export const PREFERENCES_COOKIE = "nitter_prefs";
@@ -48,17 +59,26 @@ export function encodePreferences(preferences: PagePreferences): string {
     (value, key, index) => preferences[key] ? value | (1 << index) : value,
     0,
   );
-  return `v1.${mask.toString(36)}`;
+  const mediaView = { timeline: "t", grid: "g", gallery: "a" }[preferences.mediaView];
+  const gallerySize = { small: "s", medium: "m", large: "l" }[preferences.gallerySize];
+  return `v2.${mask.toString(36)}.${mediaView}.${gallerySize}`;
 }
 
 export function decodePreferences(value: string): PagePreferences {
-  const match = /^v1\.([0-9a-z]+)$/.exec(value);
+  const legacy = /^v1\.([0-9a-z]+)$/.exec(value);
+  const current = /^v2\.([0-9a-z]+)\.([tga])\.([sml])$/.exec(value);
+  const match = legacy ?? current;
   if (!match) return { ...DEFAULT_PREFERENCES };
   const mask = Number.parseInt(match[1] ?? "", 36);
-  if (!Number.isSafeInteger(mask) || mask < 0 || mask >= 1 << PREFERENCE_KEYS.length || mask.toString(36) !== match[1]) {
+  const bitCount = legacy ? PREFERENCE_KEYS.length - 1 : PREFERENCE_KEYS.length;
+  if (!Number.isSafeInteger(mask) || mask < 0 || mask >= 1 << bitCount || mask.toString(36) !== match[1]) {
     return { ...DEFAULT_PREFERENCES };
   }
-  return Object.fromEntries(PREFERENCE_KEYS.map((key, index) => [key, Boolean(mask & (1 << index))])) as PagePreferences;
+  const booleans = Object.fromEntries(PREFERENCE_KEYS.map((key, index) => [key, Boolean(mask & (1 << index))])) as Record<PreferenceKey, boolean>;
+  if (legacy) return { ...booleans, mediaView: DEFAULT_PREFERENCES.mediaView, gallerySize: DEFAULT_PREFERENCES.gallerySize };
+  const mediaView = ({ t: "timeline", g: "grid", a: "gallery" } as const)[current![2] as "t" | "g" | "a"];
+  const gallerySize = ({ s: "small", m: "medium", l: "large" } as const)[current![3] as "s" | "m" | "l"];
+  return { ...booleans, mediaView, gallerySize };
 }
 
 export function preferencesCookie(preferences: PagePreferences, secure: boolean): string {
