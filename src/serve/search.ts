@@ -16,7 +16,7 @@ import {
   type SearchResults,
   type TweetSearchKind,
 } from "../x/timeline";
-import { fetchOptionalBasedIn } from "./account-info";
+import { fetchOptionalAccountInfo } from "./account-info";
 
 export async function serveSearchPage(request: Request, env: Env, username?: string): Promise<Response> {
   const preferences = preferencesFromRequest(request);
@@ -79,7 +79,7 @@ export async function serveSearchPage(request: Request, env: Env, username?: str
       return { timeline, profile, photos };
     });
     const basedIn = result.profile && !result.profile.suspended
-      ? await fetchOptionalBasedIn(env.NITTER_SESSIONS, username ?? result.profile.username)
+      ? (await fetchOptionalAccountInfo(env.NITTER_SESSIONS, username ?? result.profile.username))?.basedIn ?? ""
       : "";
     const profile = result.profile ? { ...result.profile, basedIn } : undefined;
     return html(renderSearchPage(search, result, profile, result.photos, preferences), 200);

@@ -4,7 +4,7 @@ import { fetchProfile, XApiError } from "../x/client";
 import { ProfileNotFoundError } from "../x/profile";
 import { withCookieSession } from "../x/sessions";
 import { fetchProfileTimeline, photoRail, type ProfileTab } from "../x/timeline";
-import { fetchOptionalBasedIn } from "./account-info";
+import { fetchOptionalAccountInfo } from "./account-info";
 
 export async function serveProfilePage(
   request: Request,
@@ -52,7 +52,7 @@ export async function serveProfilePage(
         return { profile, timeline, photos };
       },
     );
-    const basedIn = profile.suspended ? "" : await fetchOptionalBasedIn(env.NITTER_SESSIONS, username);
+    const basedIn = profile.suspended ? "" : (await fetchOptionalAccountInfo(env.NITTER_SESSIONS, username))?.basedIn ?? "";
     return html(renderProfilePage({ ...profile, basedIn }, timeline, tab, photos, preferences, cursor, mediaView), 200);
   } catch (error) {
     const notFound = error instanceof ProfileNotFoundError;

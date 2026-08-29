@@ -321,11 +321,8 @@ function formatJoinDateFull(value: string): string {
 }
 
 function shortLink(value: string): string {
-  try {
-    return new URL(value).hostname.replace(/^www\./, "");
-  } catch {
-    return value;
-  }
+  const stripped = value.replace(/^https?:\/\/(?:www[0-9]?\.)?/i, "");
+  return stripped.length > 28 ? `${stripped.slice(0, 28)}…` : stripped;
 }
 
 function formatNumber(value: number): string {

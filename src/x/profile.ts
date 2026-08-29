@@ -121,6 +121,87 @@ function verifiedTypeOf(result: Record<string, unknown>): VerifiedType {
   return result.is_blue_verified === true || verification?.is_blue_verified === true ? "blue" : "none";
 }
 
+export type AccountInfo = {
+  username: string;
+  name: string;
+  avatar: string;
+  joinedAt: string;
+  verifiedType: VerifiedType;
+  suspended: boolean;
+  basedIn: string;
+  source: string;
+  usernameChanges: number;
+  lastUsernameChangeAt: number;
+  affiliateUsername: string;
+  affiliateLabel: string;
+  isIdentityVerified: boolean;
+  verifiedSinceAt: number;
+  overrideVerifiedYear: number;
+};
+
+export function parseAccountInfo(value: unknown): AccountInfo {
+  const info: AccountInfo = {
+    username: "",
+    name: "",
+    avatar: "",
+    joinedAt: "",
+    verifiedType: "none",
+    suspended: false,
+    basedIn: "",
+    source: "",
+    usernameChanges: 0,
+    lastUsernameChangeAt: 0,
+    affiliateUsername: "",
+    affiliateLabel: "",
+    isIdentityVerified: false,
+    verifiedSinceAt: 0,
+    overrideVerifiedYear: 0,
+  };
+  const data = asOptionalRecord(asOptionalRecord(value)?.data);
+  const container = asOptionalRecord(data?.user_result_by_screen_name)
+    ?? asOptionalRecord(data?.userResultByScreenName);
+  const user = asOptionalRecord(container?.result);
+  if (!user) return info;
+  if (stringValue(user.unavailable_reason) === "Suspended" || stringValue(user.reason) === "Suspended") {
+    info.suspended = true;
+    return info;
+  }
+
+  const core = asOptionalRecord(user.core);
+  info.username = stringValue(core?.screen_name);
+  info.name = stringValue(core?.name);
+  info.joinedAt = stringValue(core?.created_at);
+  info.avatar = stringValue(asOptionalRecord(user.avatar)?.image_url).replace("_normal", "");
+  info.verifiedType = verifiedTypeOf(user);
+
+  const about = asOptionalRecord(user.about_profile) ?? asOptionalRecord(user.aboutProfile);
+  if (about) {
+    info.basedIn = stringValue(about.account_based_in) || stringValue(about.accountBasedIn);
+    info.source = stringValue(about.source);
+    info.affiliateUsername = stringValue(about.affiliate_username) || stringValue(about.affiliateUsername);
+    info.affiliateLabel = stringValue(
+      asOptionalRecord(asOptionalRecord(user.identity_profile_labels_highlighted_label)?.label)?.description,
+    );
+    const changes = asOptionalRecord(about.username_changes) ?? asOptionalRecord(about.usernameChanges);
+    info.usernameChanges = Number(stringValue(changes?.count)) || numberValue(changes?.count) || 0;
+    info.lastUsernameChangeAt = msValue(changes?.last_changed_at_msec) || msValue(changes?.lastChangedAtMsec);
+  }
+
+  const verification = asOptionalRecord(user.verification_info) ?? asOptionalRecord(user.verificationInfo);
+  if (verification) {
+    info.isIdentityVerified = verification.is_identity_verified === true || verification.isIdentityVerified === true;
+    const reason = asOptionalRecord(verification.reason);
+    info.overrideVerifiedYear = numberValue(reason?.override_verified_year) || numberValue(reason?.overrideVerifiedYear);
+    info.verifiedSinceAt = msValue(reason?.verified_since_msec) || msValue(reason?.verifiedSinceMsec);
+  }
+  return info;
+}
+
+function msValue(value: unknown): number {
+  const parsed = Number(stringValue(value));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : typeof value === "number" ? value : 0;
+}
+
 export class ProfileNotFoundError extends Error {
   constructor() {
     super("X profile does not exist");

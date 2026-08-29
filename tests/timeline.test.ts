@@ -2,6 +2,25 @@ import { describe, expect, it } from "vitest";
 import { renderTweet } from "../src/render/profile";
 import { parseTimeline } from "../src/x/timeline";
 
+const wrapNote = (result: unknown) => ({
+  data: {
+    user: {
+      result: {
+        timeline: {
+          timeline: {
+            instructions: [
+              {
+                type: "TimelineAddEntries",
+                entries: [{ entryId: "tweet-310", content: { itemContent: { tweet_results: { result } } } }],
+              },
+            ],
+          },
+        },
+      },
+    },
+  },
+});
+
 describe("parseTimeline", () => {
   it("parses numeric created_at_ms from modern tweet details", () => {
     const modern = {
@@ -286,6 +305,61 @@ describe("parseTimeline", () => {
       text: "long text with a link inside",
       links: [{ kind: "url", start: 17, end: 22, url: "https://note.example" }],
     });
+  });
+
+  it("links note tweet hashtags from entity_set over truncated legacy entities", () => {
+    const note = {
+      __typename: "Tweet",
+      rest_id: "310",
+      legacy: {
+        __typename: "LegacyTweet",
+        lang: "en",
+        full_text: "hello #world",
+        entities: { hashtags: [{ text: "stale", indices: [6, 12] }] },
+      },
+      note_tweet: {
+        note_tweet_results: {
+          result: {
+            text: "hello #world and more text beyond the legacy truncation point",
+            entity_set: {
+              hashtags: [{ text: "world", indices: [6, 12] }],
+            },
+          },
+        },
+      },
+      core: {
+        user_results: {
+          result: {
+            rest_id: "1",
+            core: { screen_name: "alice", name: "Alice" },
+            avatar: { image_url: "https://pbs.twimg.com/alice_normal.jpg" },
+          },
+        },
+      },
+    };
+    const parsed = parseTimeline(wrapNote(note)).tweets[0];
+    expect(renderTweet(parsed)).toContain('href="/search?f=tweets&amp;q=%23world"');
+    expect(renderTweet(parsed)).not.toContain("stale");
+  });
+
+  it("links V2 details hashtag entities", () => {
+    const tweet = {
+      __typename: "Tweet",
+      rest_id: "311",
+      legacy: { __typename: "LegacyTweet", lang: "en", full_text: "hello #tag" },
+      details: { hashtag_entities: [{ text: "tag", indices: [6, 10] }] },
+      core: {
+        user_results: {
+          result: {
+            rest_id: "1",
+            core: { screen_name: "alice", name: "Alice" },
+            avatar: { image_url: "https://pbs.twimg.com/alice_normal.jpg" },
+          },
+        },
+      },
+    };
+    const parsed = parseTimeline(wrapNote(tweet)).tweets[0];
+    expect(renderTweet(parsed)).toContain('href="/search?f=tweets&amp;q=%23tag"');
   });
 
   it("parses tweet entries, pins, media, and the bottom cursor", () => {

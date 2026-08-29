@@ -1,7 +1,7 @@
 import { renderAboutPage } from "../../src/render/about";
 import { renderErrorPage } from "../../src/render/profile";
 import { preferencesFromRequest } from "../../src/preferences";
-import { fetchOptionalBasedIn } from "../../src/serve/account-info";
+import { fetchOptionalAccountInfo } from "../../src/serve/account-info";
 import { fetchProfile, XApiError } from "../../src/x/client";
 import { ProfileNotFoundError } from "../../src/x/profile";
 import { withCookieSession } from "../../src/x/sessions";
@@ -17,8 +17,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       const value = await fetchProfile(username, session);
       return { ...value, username: value.username || username, name: value.name || username };
     });
-    const basedIn = profile.suspended ? "" : await fetchOptionalBasedIn(context.env.NITTER_SESSIONS, username);
-    return html(renderAboutPage({ ...profile, basedIn }, preferences), 200);
+    const accountInfo = profile.suspended ? undefined : await fetchOptionalAccountInfo(context.env.NITTER_SESSIONS, username);
+    return html(renderAboutPage({ ...profile, basedIn: accountInfo?.basedIn ?? "" }, preferences, accountInfo), 200);
   } catch (error) {
     const notFound = error instanceof ProfileNotFoundError;
     const status = notFound ? 404 : error instanceof XApiError ? 502 : 500;

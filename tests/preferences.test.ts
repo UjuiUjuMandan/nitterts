@@ -208,6 +208,35 @@ describe("preferences", () => {
     expect(renderAboutPage(profile, preferences)).toContain('class="avatar"');
     expect(renderAboutPage(profile, preferences)).not.toContain('avatar round');
 
+    const webProfile = { ...profile, website: "https://youtube.com/@cocomin0219?si=wq5YtNNKiWdg3aY4" };
+    const webHtml = renderProfilePage(webProfile, { tweets: [] }, "tweets", [], preferences);
+    expect(webHtml).toContain('<a href="https://youtube.com/@cocomin0219?si=wq5YtNNKiWdg3aY4"');
+    expect(webHtml).toContain(">youtube.com/@cocomin0219?si=…</a>");
+
+    const accountInfo = {
+      username: "alice",
+      name: "Alice",
+      avatar: "",
+      joinedAt: "",
+      verifiedType: "none" as const,
+      suspended: false,
+      basedIn: "Japan",
+      source: "Japan App Store",
+      usernameChanges: 1,
+      lastUsernameChangeAt: Date.UTC(2023, 10, 19),
+      affiliateUsername: "",
+      affiliateLabel: "",
+      isIdentityVerified: false,
+      verifiedSinceAt: 0,
+      overrideVerifiedYear: 0,
+    };
+    const about = renderAboutPage({ ...profile, basedIn: "Japan" }, preferences, accountInfo);
+    expect(about).toContain("Account based in");
+    expect(about).toContain("1 username change");
+    expect(about).toContain("Last on November 2023");
+    expect(about).toContain("Connected via");
+    expect(about).toContain("Japan App Store");
+
     const status = renderStatusPage({ tweet: tweet("2"), before: [], after: [], replies: [[tweet("3")]] }, preferences);
     expect(status).not.toContain('class="replies"');
     const statusWithReplies = renderStatusPage({ tweet: tweet("2"), before: [], after: [], replies: [[tweet("3")]] }, { ...preferences, hideReplies: false });

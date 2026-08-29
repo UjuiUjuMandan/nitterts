@@ -17,7 +17,7 @@ vi.mock("../src/x/client", async (importOriginal) => ({
   fetchProfile: vi.fn(),
 }));
 
-vi.mock("../src/serve/account-info", () => ({ fetchOptionalBasedIn: vi.fn().mockResolvedValue("") }));
+vi.mock("../src/serve/account-info", () => ({ fetchOptionalAccountInfo: vi.fn().mockResolvedValue(undefined) }));
 
 import { serveSearchPage } from "../src/serve/search";
 import { fetchProfile } from "../src/x/client";

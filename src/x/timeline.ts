@@ -530,7 +530,7 @@ export function parseTweet(value: Record<string, unknown>, depth = 0): Tweet | u
     views: Number(stringValue(recordAt(value, ["views", "count"]))) || 0,
     replyTo: collectReplyUsers(value, legacy),
     media: parseMedia(value, legacy),
-    links: remapLinks(parseLinks(value, legacy), removedRanges),
+    links: remapLinks(parseLinks(value, legacy, details, noteText), removedRanges),
     pinned: false,
   };
 
@@ -656,6 +656,8 @@ function bestVideoUrl(variants: unknown[] | undefined): string {
 function parseLinks(
   value: Record<string, unknown>,
   legacy: Record<string, unknown> | undefined,
+  details: Record<string, unknown> | undefined,
+  noteText: string,
 ): TweetLink[] {
   const links: TweetLink[] = [];
   const push = (kind: TweetLink["kind"], entity: Record<string, unknown> | undefined, url: string, display?: string) => {
@@ -666,33 +668,47 @@ function parseLinks(
     if (end <= start || !url) return;
     links.push({ kind, start, end, url, display: display || "" });
   };
+  const hashtagEntities = [
+    ...(optionalArray(value.hashtag_entities) ?? []),
+    ...(optionalArray(details?.hashtag_entities) ?? []),
+  ];
+  const cashtagEntities = [
+    ...(optionalArray(value.cashtag_entities) ?? []),
+    ...(optionalArray(details?.cashtag_entities) ?? []),
+  ];
+  const mentionEntities = [
+    ...(optionalArray(value.mention_entities) ?? []),
+    ...(optionalArray(details?.mention_entities) ?? []),
+  ];
 
-  for (const entity of optionalArray(value.url_entities) ?? []) {
+  for (const entity of [...(optionalArray(value.url_entities) ?? []), ...(optionalArray(details?.url_entities) ?? [])]) {
     const record = optionalRecord(entity);
     if (!record) continue;
     push("url", record, stringValue(record.expanded_url) || stringValue(record.url), stringValue(record.display_url));
   }
-  for (const entity of optionalArray(value.hashtag_entities) ?? []) {
+  for (const entity of hashtagEntities) {
     const record = optionalRecord(entity);
     if (!record) continue;
     const text = stringValue(record.text);
     push("hashtag", record, `/search?f=tweets&q=%23${encodeURIComponent(text)}`, `#${text}`);
   }
-  for (const entity of optionalArray(value.cashtag_entities) ?? []) {
+  for (const entity of cashtagEntities) {
     const record = optionalRecord(entity);
     if (!record) continue;
     const text = stringValue(record.text);
     push("cashtag", record, `/search?f=tweets&q=%24${encodeURIComponent(text)}`, `$${text}`);
   }
-  for (const entity of optionalArray(value.mention_entities) ?? []) {
+  for (const entity of mentionEntities) {
     const record = optionalRecord(entity);
     if (!record) continue;
     const screenName = stringValue(record.screen_name);
     push("mention", record, `/${screenName}`, `@${screenName}`);
   }
 
-  const legacyEntities = optionalRecord(legacy?.entities)
-    ?? optionalRecord(recordAt(value, ["note_tweet", "note_tweet_results", "result", "entity_set"]));
+  const noteEntities = optionalRecord(recordAt(value, ["note_tweet", "note_tweet_results", "result", "entity_set"]));
+  const legacyEntities = (noteText && noteEntities ? noteEntities : undefined)
+    ?? optionalRecord(legacy?.entities)
+    ?? noteEntities;
   if (legacyEntities) {
     for (const entity of optionalArray(legacyEntities.urls) ?? []) {
       const record = optionalRecord(entity);

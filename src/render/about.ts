@@ -1,11 +1,12 @@
 import { mediaProxyUrl } from "../media";
 import { bodyClass, DEFAULT_PREFERENCES, type PagePreferences } from "../preferences";
-import type { Profile } from "../x/profile";
+import type { AccountInfo, Profile } from "../x/profile";
 import { escapeAttribute, escapeHtml, renderNavbar } from "./profile";
 
-export function renderAboutPage(profile: Profile, preferences: PagePreferences = { ...DEFAULT_PREFERENCES }): string {
+export function renderAboutPage(profile: Profile, preferences: PagePreferences = { ...DEFAULT_PREFERENCES }, accountInfo?: AccountInfo): string {
   const base = `/${encodeURIComponent(profile.username)}`;
   const joined = monthYear(profile.joinedAt);
+  const info = accountInfo;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -27,12 +28,46 @@ export function renderAboutPage(profile: Profile, preferences: PagePreferences =
       </header>
       <div class="about-account-body">
         ${joined ? aboutRow("calendar", "Date joined", joined) : ""}
-        ${profile.basedIn ? aboutRow("location", "Account based in", profile.basedIn) : ""}
+        ${info?.basedIn ? aboutRow("location", "Account based in", info.basedIn) : ""}
+        ${verifiedRows(info)}
+        ${affiliateRow(info)}
+        ${usernameChangeRow(info)}
+        ${info?.source ? aboutRow("link", "Connected via", info.source) : ""}
       </div>
     </main>
   </div>
 </body>
 </html>`;
+}
+
+function verifiedRows(info: AccountInfo | undefined): string {
+  if (!info || info.verifiedType === "none") return "";
+  let rows = "";
+  if (info.overrideVerifiedYear) {
+    const year = Math.abs(info.overrideVerifiedYear);
+    rows += aboutRow("ok", "Verified", `Since ${year}${info.overrideVerifiedYear < 0 ? " BCE" : ""}`);
+  } else if (info.verifiedSinceAt) {
+    rows += aboutRow("ok", "Verified", `Since ${monthYear(new Date(info.verifiedSinceAt).toISOString())}`);
+  }
+  if (info.isIdentityVerified) rows += aboutRow("ok", "ID Verified", "Yes");
+  return rows;
+}
+
+function affiliateRow(info: AccountInfo | undefined): string {
+  if (!info?.affiliateUsername) return "";
+  const value = info.affiliateLabel
+    ? `${info.affiliateLabel} (@${info.affiliateUsername})`
+    : `@${info.affiliateUsername}`;
+  return `<div class="about-account-row"><span class="icon-group"></span><div><span class="about-account-label">An affiliate of</span><span class="about-account-value"><a href="/${encodeURIComponent(info.affiliateUsername)}">${escapeHtml(value)}</a></span></div></div>`;
+}
+
+function usernameChangeRow(info: AccountInfo | undefined): string {
+  if (!info?.usernameChanges) return "";
+  const label = `${info.usernameChanges} username change${info.usernameChanges > 1 ? "s" : ""}`;
+  const value = info.lastUsernameChangeAt
+    ? `Last on ${monthYear(new Date(info.lastUsernameChangeAt).toISOString())}`
+    : "";
+  return `<div class="about-account-row"><span class="about-account-at">@</span><div><span class="about-account-label">${escapeHtml(label)}</span>${value ? `<span class="about-account-value">${escapeHtml(value)}</span>` : ""}</div></div>`;
 }
 
 function aboutRow(icon: string, label: string, value: string): string {

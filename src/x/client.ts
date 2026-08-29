@@ -1,5 +1,5 @@
 import type { CookieSession } from "../session";
-import { parseProfile, type Profile } from "./profile";
+import { parseAccountInfo, parseProfile, type AccountInfo, type Profile } from "./profile";
 import { fetchTidPair, generateTransactionId } from "./tid";
 
 const GRAPH_USER = "Gb-d6r0vxPOADdG62OEBpQ/UserByScreenName";
@@ -73,18 +73,17 @@ export async function fetchProfile(
   return parseProfile(value);
 }
 
-export async function fetchProfileBasedIn(
+export async function fetchAccountInfo(
   username: string,
   session: CookieSession,
-): Promise<string> {
+): Promise<AccountInfo> {
   const value = await fetchGraphql(
     GRAPH_ABOUT_ACCOUNT,
     { screenName: username },
     {},
     session,
   );
-  return stringAt(value, ["data", "user_result_by_screen_name", "result", "about_profile", "account_based_in"])
-    || stringAt(value, ["data", "userResultByScreenName", "result", "aboutProfile", "accountBasedIn"]);
+  return parseAccountInfo(value);
 }
 
 export async function fetchGraphql(
@@ -184,13 +183,4 @@ function summarizeError(body: string): string {
   } catch {
     return "X API request failed";
   }
-}
-
-function stringAt(value: unknown, path: string[]): string {
-  let current = value;
-  for (const key of path) {
-    if (typeof current !== "object" || current === null || Array.isArray(current)) return "";
-    current = (current as Record<string, unknown>)[key];
-  }
-  return typeof current === "string" ? current : "";
 }
