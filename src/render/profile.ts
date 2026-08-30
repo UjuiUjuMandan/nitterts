@@ -140,9 +140,9 @@ export function requestPath(request: Request): string {
 }
 
 export function renderNavbar(rss = "", currentPath = "", canonical = xUrl(currentPath || "/")): string {
-  const rssLink = rss ? `<a class="icon-rss" title="RSS Feed" href="${escapeAttribute(rss)}/rss"></a>` : "";
+  const rssLink = rss ? `<div class="icon-container"><a class="icon-rss" title="RSS Feed" href="${escapeAttribute(rss)}/rss"></a></div>` : "";
   const settings = currentPath ? `/settings?referer=${encodeURIComponent(currentPath)}` : "/settings";
-  return `<nav><div class="inner-nav"><div class="nav-item"><a class="site-name" href="/">nitter</a></div><a href="/"><img class="site-logo" src="/logo.png" alt="Logo"></a><div class="nav-item right"><a class="icon-search" title="Search" href="/search"></a>${rssLink}<a class="icon-bird" title="Open in X" href="${escapeAttribute(canonical)}"></a><a href="https://liberapay.com/zedeus" title="Donate on Liberapay">${LIBERAPAY_ICON}</a><a class="icon-info" title="About" href="/about"></a><a class="icon-cog" title="Preferences" href="${escapeAttribute(settings)}"></a></div></div></nav>`;
+  return `<nav><div class="inner-nav"><div class="nav-item"><a class="site-name" href="/">nitter</a></div><a href="/"><img class="site-logo" src="/logo.png" alt="Logo"></a><div class="nav-item right"><div class="icon-container"><a class="icon-search" title="Search" href="/search"></a></div>${rssLink}<div class="icon-container"><a class="icon-bird" title="Open in X" href="${escapeAttribute(canonical)}"></a></div><a href="https://liberapay.com/zedeus" title="Donate on Liberapay">${LIBERAPAY_ICON}</a><div class="icon-container"><a class="icon-info" title="About" href="/about"></a></div><div class="icon-container"><a class="icon-cog" title="Preferences" href="${escapeAttribute(settings)}"></a></div></div></div></nav>`;
 }
 
 function xUrl(path: string): string {
