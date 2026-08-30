@@ -55,7 +55,7 @@ export const DEFAULT_PREFERENCES: Readonly<PagePreferences> = Object.freeze({
   squareAvatars: false,
   mp4Playback: true,
   hlsPlayback: false,
-  proxyVideos: true,
+  proxyVideos: false,
   muteVideos: false,
   autoplayGifs: true,
   compactGallery: false,
@@ -65,25 +65,30 @@ export const DEFAULT_PREFERENCES: Readonly<PagePreferences> = Object.freeze({
   infiniteScroll: false,
   mediaView: "grid",
   gallerySize: "medium",
-  theme: "Nitter",
+  theme: "Auto",
   replaceTwitter: "",
   replaceYouTube: "",
   replaceReddit: "",
 });
 
-// Instance-level link replacement defaults, sourced from NITTER_REPLACE_*
-// environment variables (set NITTER_REPLACE_TWITTER=nitterts.pages.dev to
-// rewrite tweet links to this instance). User cookies still win.
+// Instance-level preference defaults, sourced from NITTER_* environment
+// variables. This instance defaults to serving videos directly from X's CDN
+// (proxyVideos=false) and without HLS streaming; user cookies still win.
 let replaceDefaults: Record<ReplaceKey, string> = {
   replaceTwitter: DEFAULT_PREFERENCES.replaceTwitter,
   replaceYouTube: DEFAULT_PREFERENCES.replaceYouTube,
   replaceReddit: DEFAULT_PREFERENCES.replaceReddit,
 };
+let flagDefaults: { proxyVideos?: boolean; hlsPlayback?: boolean } = {};
+let themeDefault: Theme = DEFAULT_PREFERENCES.theme;
 
 export function installPreferenceDefaults(env: {
   NITTER_REPLACE_TWITTER?: string;
   NITTER_REPLACE_YOUTUBE?: string;
   NITTER_REPLACE_REDDIT?: string;
+  NITTER_PROXY_VIDEOS?: string;
+  NITTER_HLS_PLAYBACK?: string;
+  NITTER_THEME?: string;
 } | undefined): void {
   const apply = (key: ReplaceKey, name: string, value: string | undefined): void => {
     if (value === undefined) return;
@@ -98,6 +103,34 @@ export function installPreferenceDefaults(env: {
   apply("replaceTwitter", "NITTER_REPLACE_TWITTER", env?.NITTER_REPLACE_TWITTER);
   apply("replaceYouTube", "NITTER_REPLACE_YOUTUBE", env?.NITTER_REPLACE_YOUTUBE);
   apply("replaceReddit", "NITTER_REPLACE_REDDIT", env?.NITTER_REPLACE_REDDIT);
+
+  const applyFlag = (key: "proxyVideos" | "hlsPlayback", name: string, value: string | undefined): void => {
+    if (value === undefined) return;
+    const flag = parseBooleanPreference(value);
+    if (flag === undefined) {
+      console.warn(JSON.stringify({ message: `ignoring invalid ${name}`, value }));
+      return;
+    }
+    flagDefaults = { ...flagDefaults, [key]: flag };
+  };
+  applyFlag("proxyVideos", "NITTER_PROXY_VIDEOS", env?.NITTER_PROXY_VIDEOS);
+  applyFlag("hlsPlayback", "NITTER_HLS_PLAYBACK", env?.NITTER_HLS_PLAYBACK);
+
+  if (env?.NITTER_THEME !== undefined) {
+    const match = THEMES.find((theme) => theme.toLowerCase() === env.NITTER_THEME?.trim().toLowerCase());
+    if (match) {
+      themeDefault = match;
+    } else {
+      console.warn(JSON.stringify({ message: "ignoring invalid NITTER_THEME", value: env.NITTER_THEME }));
+    }
+  }
+}
+
+function parseBooleanPreference(value: string): boolean | undefined {
+  const normalized = value.trim().toLowerCase();
+  if (["true", "1", "on"].includes(normalized)) return true;
+  if (["false", "0", "off", ""].includes(normalized)) return false;
+  return undefined;
 }
 
 function validReplacementHost(value: string): boolean {
@@ -115,10 +148,12 @@ export function resetPreferenceDefaults(): void {
     replaceYouTube: DEFAULT_PREFERENCES.replaceYouTube,
     replaceReddit: DEFAULT_PREFERENCES.replaceReddit,
   };
+  flagDefaults = {};
+  themeDefault = DEFAULT_PREFERENCES.theme;
 }
 
 export function defaultPreferences(): PagePreferences {
-  return { ...DEFAULT_PREFERENCES, ...replaceDefaults };
+  return { ...DEFAULT_PREFERENCES, ...flagDefaults, theme: themeDefault, ...replaceDefaults };
 }
 
 const PREFERENCE_NAMES = [...PREFERENCE_KEYS, ...SELECT_KEYS, ...REPLACE_KEYS] as const;

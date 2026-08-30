@@ -7,6 +7,9 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     NITTER_REPLACE_TWITTER?: string;
     NITTER_REPLACE_YOUTUBE?: string;
     NITTER_REPLACE_REDDIT?: string;
+    NITTER_PROXY_VIDEOS?: string;
+    NITTER_HLS_PLAYBACK?: string;
+    NITTER_THEME?: string;
   });
   installMediaSigner(context.env.NITTER_HMAC_KEY);
   installMetricsSink(context.env.HEALTH_METRICS);

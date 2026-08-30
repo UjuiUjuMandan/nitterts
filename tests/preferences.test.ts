@@ -87,6 +87,8 @@ describe("preferences", () => {
       replaceTwitter: "",
       replaceYouTube: "",
       replaceReddit: "",
+      proxyVideos: false,
+      hlsPlayback: false,
     });
 
     installPreferenceDefaults({
@@ -138,6 +140,35 @@ describe("preferences", () => {
 
     const redirect = preferencesRedirect(new Request("https://nitter.test/?prefs=hideBanner=on"));
     expect(redirect?.headers.get("set-cookie")).toContain("replaceTwitter=; Path=/; Max-Age=0");
+  });
+
+  it("sources video playback defaults from the instance environment", () => {
+    installPreferenceDefaults({ NITTER_PROXY_VIDEOS: "true", NITTER_HLS_PLAYBACK: "true" });
+    expect(preferencesFromRequest(new Request("https://nitter.test/"))).toMatchObject({
+      proxyVideos: true,
+      hlsPlayback: true,
+    });
+
+    // Env defaults are defaults: bookmarks omit them and cookies win.
+    expect(encodePrefs(preferencesFromRequest(new Request("https://nitter.test/")))).not.toContain("proxyVideos");
+    expect(preferencesFromRequest(new Request("https://nitter.test", { headers: { cookie: "proxyVideos=" } })))
+      .toMatchObject({ proxyVideos: false });
+
+    installPreferenceDefaults({ NITTER_PROXY_VIDEOS: "maybe" });
+    expect(preferencesFromRequest(new Request("https://nitter.test/"))).toMatchObject({ proxyVideos: true });
+  });
+
+  it("sources the theme default from the instance environment", () => {
+    expect(preferencesFromRequest(new Request("https://nitter.test/"))).toMatchObject({ theme: "Auto" });
+
+    installPreferenceDefaults({ NITTER_THEME: "dracula" });
+    expect(preferencesFromRequest(new Request("https://nitter.test/"))).toMatchObject({ theme: "Dracula" });
+    expect(encodePrefs(preferencesFromRequest(new Request("https://nitter.test/")))).not.toContain("theme");
+    expect(preferencesFromRequest(new Request("https://nitter.test", { headers: { cookie: "theme=Nitter" } })))
+      .toMatchObject({ theme: "Nitter" });
+
+    installPreferenceDefaults({ NITTER_THEME: "NotATheme" });
+    expect(preferencesFromRequest(new Request("https://nitter.test/"))).toMatchObject({ theme: "Dracula" });
   });
 
   it("saves and resets preferences with secure same-origin cookies", async () => {
@@ -282,7 +313,8 @@ describe("preferences", () => {
     expect(settingsHtml).toContain("Hide related tweets under replies");
     expect(settingsHtml).toContain('name="hideCommunityNotes" type="checkbox"');
     expect(settingsHtml).toContain('name="hlsPlayback" type="checkbox"');
-    expect(settingsHtml).toContain('name="proxyVideos" type="checkbox" checked');
+    expect(settingsHtml).toContain('name="proxyVideos" type="checkbox"');
+    expect(settingsHtml).not.toContain('name="proxyVideos" type="checkbox" checked');
     expect(settingsHtml).toContain('name="infiniteScroll" type="checkbox"');
     expect(settingsHtml).toContain('name="replaceTwitter" id="replaceTwitter"');
     expect(settingsHtml).toContain("<legend>Bookmark</legend>");
@@ -300,7 +332,7 @@ describe("preferences", () => {
     expect(renderHomePage(preferences)).toContain("<body>");
     expect(renderHomePage(DEFAULT_PREFERENCES)).toContain('<body class="fixed-nav">');
     expect(renderHomePage(preferences)).toContain("/settings?referer=%2F");
-    expect(renderHomePage(DEFAULT_PREFERENCES)).toContain('/css/themes/nitter.css"');
+    expect(renderHomePage(DEFAULT_PREFERENCES)).toContain('/css/themes/auto.css"');
     expect(renderHomePage({ ...DEFAULT_PREFERENCES, theme: "Twitter Dark" })).toContain('/css/themes/twitter_dark.css"');
 
     const bidi = renderTweet(tweet("9"), false, { ...DEFAULT_PREFERENCES, bidiSupport: true });
@@ -348,21 +380,21 @@ describe("preferences", () => {
     const videoTweet = { ...tweet("4"), media: [{ kind: "video" as const, url: "https://video.twimg.com/video.mp4", preview: "https://pbs.twimg.com/video.jpg", alt: "" }] };
     const disabledVideo = renderTweet(videoTweet, false, preferences);
     expect(disabledVideo).not.toContain("<video");
-    expect(disabledVideo).toContain(`href="/video/${mediaSignature("https://video.twimg.com/video.mp4")}/https%3A%2F%2Fvideo.twimg.com%2Fvideo.mp4"`);
-    const enabled = { ...preferences, mp4Playback: true, proxyVideos: false, muteVideos: true };
+    expect(disabledVideo).toContain('href="https://video.twimg.com/video.mp4"');
+    const enabled = { ...preferences, mp4Playback: true, proxyVideos: true, muteVideos: true };
     expect(renderTweet(videoTweet, false, enabled)).toContain("<video controls muted playsinline");
-    expect(renderTweet(videoTweet, false, enabled)).toContain('src="https://video.twimg.com/video.mp4"');
+    expect(renderTweet(videoTweet, false, enabled)).toContain(`src="/video/${mediaSignature("https://video.twimg.com/video.mp4")}/https%3A%2F%2Fvideo.twimg.com%2Fvideo.mp4"`);
     expect(renderTweet(videoTweet, false, enabled)).toContain('class="gallery-row mixed-row"');
 
-    // Default preferences play mp4 videos inline through the signed proxy.
+    // Default preferences play mp4 videos inline straight from X's CDN.
     const defaultVideo = renderTweet(videoTweet, false, DEFAULT_PREFERENCES);
     expect(defaultVideo).toContain("<video controls playsinline");
-    expect(defaultVideo).toContain(`src="/video/${mediaSignature("https://video.twimg.com/video.mp4")}/https%3A%2F%2Fvideo.twimg.com%2Fvideo.mp4"`);
+    expect(defaultVideo).toContain('src="https://video.twimg.com/video.mp4"');
     expect(defaultVideo).not.toContain("media-badge");
 
     const hlsTweet = { ...videoTweet, media: [{ ...videoTweet.media[0]!, hls: "https://video.twimg.com/master.m3u8" }] };
     const hls = { ...preferences, hlsPlayback: true };
-    expect(renderTweet(hlsTweet, false, hls)).toContain(`data-url="/video/${mediaSignature("https://video.twimg.com/master.m3u8")}/https%3A%2F%2Fvideo.twimg.com%2Fmaster.m3u8"`);
+    expect(renderTweet(hlsTweet, false, hls)).toContain('data-url="https://video.twimg.com/master.m3u8"');
     expect(renderTweet(hlsTweet, false, hls)).toContain('onclick="playVideo(this)"');
     expect(renderProfilePage(profile, { tweets: [hlsTweet] }, "tweets", [], hls)).toContain('<script src="/js/hls.min.js" defer></script>');
     expect(renderProfilePage(profile, { tweets: [] }, "tweets", [], { ...preferences, infiniteScroll: true })).toContain('<script src="/js/infiniteScroll.js" defer></script>');

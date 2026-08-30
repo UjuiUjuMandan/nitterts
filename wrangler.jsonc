@@ -7,7 +7,10 @@
   "vars": {
     "NITTER_REPLACE_TWITTER": "nitterts.pages.dev",
     "NITTER_REPLACE_YOUTUBE": "",
-    "NITTER_REPLACE_REDDIT": ""
+    "NITTER_REPLACE_REDDIT": "",
+    "NITTER_PROXY_VIDEOS": "false",
+    "NITTER_HLS_PLAYBACK": "false",
+    "NITTER_THEME": "Auto"
   },
   "durable_objects": {
     "bindings": [
