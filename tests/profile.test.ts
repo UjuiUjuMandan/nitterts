@@ -16,7 +16,7 @@ describe("parseProfile", () => {
             location: { location: "The Internet" },
             website: { url: "https://t.co/abc" },
             profile_bio: {
-              description: "hello",
+              description: "hello\nサブ垢：@alice_alt 名@example.com e\u0301@example.com @abcdefghijklmnop",
               entities: { url: { urls: [{ expanded_url: "https://alice.example" }] } },
             },
             action_counts: { favorites_count: 7 },
@@ -39,6 +39,7 @@ describe("parseProfile", () => {
       likes: 7,
       followers: 10,
       blueVerified: true,
+      bioLinks: [{ kind: "mention", start: 10, end: 20, url: "/alice_alt", display: "@alice_alt" }],
     });
   });
 

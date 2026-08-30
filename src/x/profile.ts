@@ -43,12 +43,13 @@ export function parseProfileResult(value: unknown): Profile {
 
   const legacy = asOptionalRecord(result.legacy);
   if (legacy && typeof legacy.screen_name === "string") {
+    const bio = stringValue(legacy.description);
     return {
       id: stringValue(legacy.id_str) || stringValue(result.rest_id),
       username: stringValue(legacy.screen_name),
       name: stringValue(legacy.name),
-      bio: stringValue(legacy.description),
-      bioLinks: bioLinksFromUrls(asOptionalArray(recordAtLegacy(legacy, ["entities", "description", "urls"]))),
+      bio,
+      bioLinks: bioLinks(bio, asOptionalArray(recordAtLegacy(legacy, ["entities", "description", "urls"]))),
       avatar: stringValue(legacy.profile_image_url_https).replace("_normal", ""),
       banner: stringValue(legacy.profile_banner_url),
       location: stringValue(legacy.location),
@@ -77,6 +78,7 @@ export function parseProfileResult(value: unknown): Profile {
   const tweetCounts = asOptionalRecord(result.tweet_counts);
   const privacy = asOptionalRecord(result.privacy);
   const username = stringValue(core.screen_name);
+  const description = stringValue(bio?.description);
 
   if (!username) {
     throw new Error("X profile response has no user result");
@@ -86,8 +88,9 @@ export function parseProfileResult(value: unknown): Profile {
     id: stringValue(result.rest_id),
     username,
     name: stringValue(core.name),
-    bio: stringValue(bio?.description),
-    bioLinks: bioLinksFromUrls(
+    bio: description,
+    bioLinks: bioLinks(
+      description,
       asOptionalArray(recordAtLegacy(bio ?? {}, ["entities", "description", "urls"])),
     ),
     avatar: stringValue(avatar.image_url).replace("_normal", ""),
@@ -233,7 +236,7 @@ function emptyProfile(suspended: boolean): Profile {
   };
 }
 
-function bioLinksFromUrls(urls: unknown[] | undefined): TweetLink[] {
+function bioLinks(text: string, urls: unknown[] | undefined): TweetLink[] {
   const links: TweetLink[] = [];
   for (const item of urls ?? []) {
     const record = asOptionalRecord(item);
@@ -244,6 +247,16 @@ function bioLinksFromUrls(urls: unknown[] | undefined): TweetLink[] {
     const url = stringValue(record.expanded_url) || stringValue(record.url);
     if (end <= start || !url) continue;
     links.push({ kind: "url", start, end, url, display: stringValue(record.display_url) });
+  }
+
+  for (const match of text.matchAll(/(^|[^\p{L}\p{M}\p{N}!#$%&'*+\-./=?^_`{|}~])@([A-Za-z0-9_]{1,15})(?![A-Za-z0-9_])/gu)) {
+    const username = match[2];
+    if (!username) continue;
+    const codeUnitStart = (match.index ?? 0) + (match[1]?.length ?? 0);
+    const start = [...text.slice(0, codeUnitStart)].length;
+    const end = start + username.length + 1;
+    if (links.some((link) => start < link.end && end > link.start)) continue;
+    links.push({ kind: "mention", start, end, url: `/${username}`, display: `@${username}` });
   }
   return links.sort((a, b) => a.start - b.start);
 }
