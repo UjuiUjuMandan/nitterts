@@ -354,6 +354,12 @@ describe("preferences", () => {
     expect(renderTweet(videoTweet, false, enabled)).toContain('src="https://video.twimg.com/video.mp4"');
     expect(renderTweet(videoTweet, false, enabled)).toContain('class="gallery-row mixed-row"');
 
+    // Default preferences play mp4 videos inline through the signed proxy.
+    const defaultVideo = renderTweet(videoTweet, false, DEFAULT_PREFERENCES);
+    expect(defaultVideo).toContain("<video controls playsinline");
+    expect(defaultVideo).toContain(`src="/video/${mediaSignature("https://video.twimg.com/video.mp4")}/https%3A%2F%2Fvideo.twimg.com%2Fvideo.mp4"`);
+    expect(defaultVideo).not.toContain("media-badge");
+
     const hlsTweet = { ...videoTweet, media: [{ ...videoTweet.media[0]!, hls: "https://video.twimg.com/master.m3u8" }] };
     const hls = { ...preferences, hlsPlayback: true };
     expect(renderTweet(hlsTweet, false, hls)).toContain(`data-url="/video/${mediaSignature("https://video.twimg.com/master.m3u8")}/https%3A%2F%2Fvideo.twimg.com%2Fmaster.m3u8"`);

@@ -274,13 +274,15 @@ function renderMedia(tweet: Tweet, preferences: PagePreferences): string {
       if (item.kind === "photo") {
         return { kind: item.kind, html: `<a class="attachment still-image" href="${escapeAttribute(origPicUrl(item.url))}" target="_blank" rel="noopener"><img loading="lazy" src="${escapeAttribute(mediaProxyUrl(image))}" alt="${escapeAttribute(item.alt)}"></a>` };
       }
-      const directMp4 = item.kind === "video" && !preferences.proxyVideos && item.url;
-      if (item.kind === "video" && (directMp4 || (preferences.hlsPlayback && item.hls))) {
-        const source = videoSrc(directMp4 || item.hls || "");
-        if (directMp4) {
-          return { kind: item.kind, html: `<div class="attachment video-container"><video controls${preferences.muteVideos ? " muted" : ""} playsinline preload="metadata" poster="${escapeAttribute(mediaProxyUrl(image))}" aria-label="${escapeAttribute(item.alt || "Video")}"><source src="${escapeAttribute(source)}" type="video/mp4"></video></div>` };
-        }
-        return { kind: item.kind, html: `<div class="attachment video-container"><video data-url="${escapeAttribute(source)}" data-autoload="false"${preferences.muteVideos ? " muted" : ""} playsinline preload="metadata" poster="${escapeAttribute(mediaProxyUrl(image))}" aria-label="${escapeAttribute(item.alt || "Video")}"></video><div class="video-overlay" onclick="playVideo(this)"><div class="overlay-circle"><span class="overlay-triangle"></span></div></div></div>` };
+      // Inline playback mirrors upstream: HLS wins when enabled, then mp4
+      // through the proxy chosen by the proxyVideos preference.
+      const hlsEnabled = item.kind === "video" && preferences.hlsPlayback && item.hls;
+      const directMp4 = item.kind === "video" && preferences.mp4Playback && item.url;
+      if (hlsEnabled) {
+        return { kind: item.kind, html: `<div class="attachment video-container"><video data-url="${escapeAttribute(videoSrc(item.hls || ""))}" data-autoload="false"${preferences.muteVideos ? " muted" : ""} playsinline preload="metadata" poster="${escapeAttribute(mediaProxyUrl(image))}" aria-label="${escapeAttribute(item.alt || "Video")}"></video><div class="video-overlay" onclick="playVideo(this)"><div class="overlay-circle"><span class="overlay-triangle"></span></div></div></div>` };
+      }
+      if (directMp4) {
+        return { kind: item.kind, html: `<div class="attachment video-container"><video controls${preferences.muteVideos ? " muted" : ""} playsinline preload="metadata" poster="${escapeAttribute(mediaProxyUrl(image))}" aria-label="${escapeAttribute(item.alt || "Video")}"><source src="${escapeAttribute(videoSrc(item.url))}" type="video/mp4"></video></div>` };
       }
       if (item.kind === "gif" && item.url && preferences.mp4Playback) {
         const playback = preferences.autoplayGifs ? " autoplay muted loop" : " controls muted loop";
