@@ -58,7 +58,7 @@ describe("renderProfilePage", () => {
     expect(html).not.toContain("<script>alert(1)</script>");
     expect(html).not.toContain("<img src=x");
     expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
-    expect(html).toContain("/media?url=https%3A%2F%2Fpbs.twimg.com%2Falice.jpg");
+    expect(html).toContain("/pic/https%3A%2F%2Fpbs.twimg.com%2Falice.jpg");
     expect(html).toContain('class="profile-tabs"');
     expect(html).toContain('class="profile-card-avatar"');
     expect(html).toContain('class="timeline-item tweet"');
@@ -105,7 +105,7 @@ describe("renderProfilePage", () => {
     expect(withRail).toContain('class="photo-rail-card"');
     expect(withRail).toContain("2 Photos and videos");
     expect(withRail).toContain("/alice/status/10#m");
-    expect(withRail).toContain("%2Fmedia%2Fa.jpg%3Athumb");
+    expect(withRail).toContain("pic/media%2Fa.jpg%3Athumb");
 
     const verified = renderProfilePage(
       {

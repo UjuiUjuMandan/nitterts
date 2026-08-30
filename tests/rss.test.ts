@@ -57,7 +57,7 @@ describe("renderTimelineRss", () => {
     expect(xml).toContain('<?xml version="1.0" encoding="UTF-8"?>');
     expect(xml).toContain("<title>Alice &lt;&amp;&gt; / @alice</title>");
     expect(xml).toContain("<atom:link href=\"https://nitter.example/alice/rss\"");
-    expect(xml).toContain("https://nitter.example/media?url=https%3A%2F%2Fpbs.twimg.com%2Falice.jpg");
+    expect(xml).toContain("https://nitter.example/pic/https%3A%2F%2Fpbs.twimg.com%2Falice.jpg");
     expect(xml).toContain("<guid isPermaLink=\"false\">2092329293158191570</guid>");
     expect(xml).toContain("Tue, 25 Aug 2026 17:45:00 GMT");
     expect(xml).toContain('<![CDATA[<p>hello &lt;rss&gt; &amp; friends</p>');

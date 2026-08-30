@@ -1,4 +1,4 @@
-import { mediaProxyUrl } from "../media";
+import { mediaProxyUrl, origPicUrl } from "../media";
 import { bodyClass, DEFAULT_PREFERENCES, themeSlug, type MediaView, type PagePreferences } from "../preferences";
 import type { Profile } from "../x/profile";
 import type { PhotoRailItem, ProfileTab, Timeline, Tweet, TweetLink, VerifiedType } from "../x/timeline";
@@ -272,7 +272,7 @@ function renderMedia(tweet: Tweet, preferences: PagePreferences): string {
       if (!image) return "";
       const videoSrc = (url: string) => preferences.proxyVideos ? mediaProxyUrl(url) : url;
       if (item.kind === "photo") {
-        return { kind: item.kind, html: `<a class="attachment still-image" href="${escapeAttribute(mediaProxyUrl(item.url))}" target="_blank" rel="noopener"><img loading="lazy" src="${escapeAttribute(mediaProxyUrl(image))}" alt="${escapeAttribute(item.alt)}"></a>` };
+        return { kind: item.kind, html: `<a class="attachment still-image" href="${escapeAttribute(origPicUrl(item.url))}" target="_blank" rel="noopener"><img loading="lazy" src="${escapeAttribute(mediaProxyUrl(image))}" alt="${escapeAttribute(item.alt)}"></a>` };
       }
       const directMp4 = item.kind === "video" && !preferences.proxyVideos && item.url;
       if (item.kind === "video" && (directMp4 || (preferences.hlsPlayback && item.hls))) {

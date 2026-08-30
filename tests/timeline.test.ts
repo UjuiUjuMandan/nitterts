@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { mediaSignature } from "../src/media";
 import { DEFAULT_PREFERENCES } from "../src/preferences";
 import { renderTweet } from "../src/render/profile";
 import { parseTimeline } from "../src/x/timeline";
@@ -493,7 +494,7 @@ describe("parseTimeline", () => {
     const videoHtml = renderTweet(timeline.tweets[0]!, false, { ...DEFAULT_PREFERENCES, hlsPlayback: true });
     const directVideoHtml = renderTweet(timeline.tweets[0]!, false, { ...DEFAULT_PREFERENCES, proxyVideos: false });
     const gifHtml = renderTweet(timeline.tweets[1]!);
-    expect(videoHtml).toContain('data-url="/media?url=https%3A%2F%2Fvideo.twimg.com%2Fmaster.m3u8"');
+    expect(videoHtml).toContain(`data-url="/video/${mediaSignature("https://video.twimg.com/master.m3u8")}/https%3A%2F%2Fvideo.twimg.com%2Fmaster.m3u8"`);
     expect(videoHtml).toContain('onclick="playVideo(this)"');
     expect(videoHtml).toContain('class="community-note"');
     expect(videoHtml).toContain('href="https://communitynotes.x.com/guide"');

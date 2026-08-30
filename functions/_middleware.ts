@@ -1,4 +1,5 @@
 import { installPreferenceDefaults, preferencesRedirect } from "../src/preferences";
+import { installMediaSigner } from "../src/media";
 import { installMetricsSink } from "../src/x/metrics-sink";
 
 export const onRequest: PagesFunction<Env> = async (context) => {
@@ -7,6 +8,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     NITTER_REPLACE_YOUTUBE?: string;
     NITTER_REPLACE_REDDIT?: string;
   });
+  installMediaSigner(context.env.NITTER_HMAC_KEY);
   installMetricsSink(context.env.HEALTH_METRICS);
   const pathname = new URL(context.request.url).pathname;
   const redirect = context.request.method === "GET" || context.request.method === "HEAD"

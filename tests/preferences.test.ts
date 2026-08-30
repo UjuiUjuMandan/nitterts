@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { mediaSignature } from "../src/media";
 import { DEFAULT_PREFERENCES, encodePrefs, installPreferenceDefaults, preferencesCookies, preferencesFromBookmark, preferencesFromRequest, preferencesRedirect, resetPreferenceDefaults } from "../src/preferences";
 import { renderProfilePage, renderTweet } from "../src/render/profile";
 import { renderHomePage } from "../src/render/home";
@@ -347,7 +348,7 @@ describe("preferences", () => {
     const videoTweet = { ...tweet("4"), media: [{ kind: "video" as const, url: "https://video.twimg.com/video.mp4", preview: "https://pbs.twimg.com/video.jpg", alt: "" }] };
     const disabledVideo = renderTweet(videoTweet, false, preferences);
     expect(disabledVideo).not.toContain("<video");
-    expect(disabledVideo).toContain('href="/media?url=https%3A%2F%2Fvideo.twimg.com%2Fvideo.mp4"');
+    expect(disabledVideo).toContain(`href="/video/${mediaSignature("https://video.twimg.com/video.mp4")}/https%3A%2F%2Fvideo.twimg.com%2Fvideo.mp4"`);
     const enabled = { ...preferences, mp4Playback: true, proxyVideos: false, muteVideos: true };
     expect(renderTweet(videoTweet, false, enabled)).toContain("<video controls muted playsinline");
     expect(renderTweet(videoTweet, false, enabled)).toContain('src="https://video.twimg.com/video.mp4"');
@@ -355,7 +356,7 @@ describe("preferences", () => {
 
     const hlsTweet = { ...videoTweet, media: [{ ...videoTweet.media[0]!, hls: "https://video.twimg.com/master.m3u8" }] };
     const hls = { ...preferences, hlsPlayback: true };
-    expect(renderTweet(hlsTweet, false, hls)).toContain('data-url="/media?url=https%3A%2F%2Fvideo.twimg.com%2Fmaster.m3u8"');
+    expect(renderTweet(hlsTweet, false, hls)).toContain(`data-url="/video/${mediaSignature("https://video.twimg.com/master.m3u8")}/https%3A%2F%2Fvideo.twimg.com%2Fmaster.m3u8"`);
     expect(renderTweet(hlsTweet, false, hls)).toContain('onclick="playVideo(this)"');
     expect(renderProfilePage(profile, { tweets: [hlsTweet] }, "tweets", [], hls)).toContain('<script src="/js/hls.min.js" defer></script>');
     expect(renderProfilePage(profile, { tweets: [] }, "tweets", [], { ...preferences, infiniteScroll: true })).toContain('<script src="/js/infiniteScroll.js" defer></script>');

@@ -1,3 +1,4 @@
+import { mediaProxyUrl } from "../media";
 import type { Profile } from "../x/profile";
 import type { ListDetail } from "../x/list";
 import type { Timeline, Tweet } from "../x/timeline";
@@ -115,7 +116,7 @@ function cdataSafe(value: string): string {
 }
 
 function mediaAbsolute(url: string, origin: string): string {
-  return `${origin}/media?url=${encodeURIComponent(url)}`;
+  return `${origin}${mediaProxyUrl(url)}`;
 }
 
 function rfc822(value: string): string {
