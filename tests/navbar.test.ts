@@ -51,7 +51,7 @@ describe("right navbar", () => {
     const html = await response.text();
     expect(response.status).toBe(200);
     expect(html).toContain("<h1>About</h1>");
-    expect(html).toContain("Nitter is a free and open source alternative X front-end");
+    expect(html).toContain("NitterTS is a TypeScript port of Nitter, a free and open source alternative Twitter front-end focused on");
     expect(html).toContain('/css/themes/dracula.css"');
     expect(html).toContain('class="icon-info" title="About" href="/about"');
     expect(INSTANCE_VERSION).toMatch(/^\d{4}\.\d{2}\.\d{2}-[0-9a-f]+$/);
