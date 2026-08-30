@@ -155,12 +155,27 @@ describe("search", () => {
       since: "2026-01-01",
       until: "2026-08-27",
       minLikes: "10",
+      filters: ["media", "quote"],
+      excludes: ["replies"],
     });
     expect(html).toContain('id="search-panel-toggle" type="checkbox" checked');
-    expect(html).toContain('name="since" value="2026-01-01"');
+    expect(html).toContain('class="pref-group pref-input pref-inline" title="q"');
+    expect(html).toContain('<span class="search-title">Filter</span>');
+    expect(html).toContain('<span class="search-title">Exclude</span>');
+    expect(html).toContain('title="f-media">Media<input name="f-media" type="checkbox" checked');
+    expect(html).toContain('title="f-quote">Quotes<input name="f-quote" type="checkbox" checked');
+    expect(html).toContain('title="e-replies">Replies<input name="e-replies" type="checkbox" checked');
+    expect(html).toContain('<span class="search-title">Time range</span>');
+    expect(html).toContain('<span class="date-input"><input type="date" name="since" value="2026-01-01"><div class="icon-container"><span class="icon-calendar"></span></div></span>');
     expect(html).toContain('name="until" value="2026-08-27"');
-    expect(html).toContain('name="min_faves" min="0" value="10"');
-    expect(html).toContain("since=2026-01-01&amp;until=2026-08-27&amp;min_faves=10");
+    expect(html).toContain('name="min_faves" placeholder="Number..." min="0" step="1" value="10"');
+    expect(html).toContain("f-media=on&amp;f-quote=on&amp;e-replies=on&amp;since=2026-01-01&amp;until=2026-08-27&amp;min_faves=10");
+  });
+
+  it("keeps the panel closed for profile searches", () => {
+    const html = renderSearchPage({ query: "nim", kind: "tweets", username: "alice", since: "2026-01-01" });
+    expect(html).toContain('id="search-panel-toggle" type="checkbox"');
+    expect(html).not.toContain('id="search-panel-toggle" type="checkbox" checked');
   });
 
   it("parses and renders user search entries", () => {

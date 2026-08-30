@@ -1,5 +1,5 @@
 import { renderErrorPage, requestPath } from "../render/profile";
-import { renderSearchPage, xSearchUrl } from "../render/search";
+import { renderSearchPage, VALID_SEARCH_FILTERS, xSearchUrl } from "../render/search";
 import { preferencesFromRequest } from "../preferences";
 import { fetchProfile, XApiError } from "../x/client";
 import { ProfileNotFoundError, type Profile } from "../x/profile";
@@ -33,25 +33,42 @@ export async function serveSearchPage(request: Request, env: Env, username?: str
   const since = validDate(url.searchParams.get("since"));
   const until = validDate(url.searchParams.get("until"));
   const minLikes = validNumber(url.searchParams.get("min_faves"));
-  const search = { query, kind, cursor, username, since, until, minLikes };
+  const filters: string[] = [...new Set(
+    [...url.searchParams.keys()]
+      .filter((key) => key.startsWith("f-") && VALID_SEARCH_FILTERS.has(key.slice(2)))
+      .map((key) => key.slice(2)),
+  )];
+  const excludes: string[] = [...new Set(
+    [...url.searchParams.keys()]
+      .filter((key) => key.startsWith("e-") && VALID_SEARCH_FILTERS.has(key.slice(2)))
+      .map((key) => key.slice(2)),
+  )];
+  const search = { query, kind, cursor, username, since, until, minLikes, filters, excludes };
   if (username && !/^[A-Za-z0-9_]{1,15}$/.test(username)) {
     return html(renderErrorPage("Invalid username", 400, requestPath(request), xSearchUrl(search)), 400);
   }
   if (query.length > 500) return html(renderErrorPage("Search input too long", 400, requestPath(request), xSearchUrl(search)), 400);
-  if (!query && ((kind === "users" || kind === "lists") || (!username && !since && !until && !minLikes))) {
+  if (!query && ((kind === "users" || kind === "lists") || (!username && !since && !until && !minLikes && !filters.length && !excludes.length))) {
+    return html(renderSearchPage(search, undefined, undefined, [], preferences), 200);
+  }
+
+  const excludeNativeretweets = excludes.includes("nativeretweets");
+  const rawQuery = [
+    username ? `from:${username}` : "",
+    ...filters.map((filter) => `filter:${filter}`),
+    ...excludes.filter((name) => name !== "nativeretweets").map((name) => `-filter:${name}`),
+    query,
+    ...(excludeNativeretweets ? [] : ["include:nativeretweets"]),
+    since ? `since:${since}` : "",
+    until ? `until:${until}` : "",
+    minLikes ? `min_faves:${minLikes}` : "",
+  ].filter(Boolean).join(" ");
+  if (kind !== "users" && kind !== "lists" && !rawQuery) {
     return html(renderSearchPage(search, undefined, undefined, [], preferences), 200);
   }
 
   try {
     const result = await withCookieSession<SearchResults & { profile?: Profile; photos?: PhotoRailItem[] }>(env.NITTER_SESSIONS, async (session) => {
-      const rawQuery = [
-        username ? `from:${username}` : "",
-        query,
-        "include:nativeretweets",
-        since ? `since:${since}` : "",
-        until ? `until:${until}` : "",
-        minLikes ? `min_faves:${minLikes}` : "",
-      ].filter(Boolean).join(" ");
       if (!username) {
         if (kind === "users") return await fetchUserSearch(query, session, cursor);
         if (kind === "lists") return await fetchListSearch(query, session, cursor);

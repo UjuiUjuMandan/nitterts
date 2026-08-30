@@ -22,7 +22,31 @@ export type SearchPage = {
   since?: string;
   until?: string;
   minLikes?: string;
+  filters?: readonly string[];
+  excludes?: readonly string[];
 };
+
+// Mirrors upstream views/search.nim toggles and query.nim validFilters.
+const SEARCH_TOGGLES: readonly (readonly [string, string])[] = [
+  ["nativeretweets", "Retweets"],
+  ["media", "Media"],
+  ["videos", "Videos"],
+  ["news", "News"],
+  ["native_video", "Native videos"],
+  ["replies", "Replies"],
+  ["links", "Links"],
+  ["images", "Images"],
+  ["quote", "Quotes"],
+  ["spaces", "Spaces"],
+];
+
+export const VALID_SEARCH_FILTERS = new Set([
+  ...SEARCH_TOGGLES.map(([name]) => name),
+  "twimg",
+  "consumer_video",
+  "mentions",
+  "retweets",
+]);
 
 export function renderSearchPage(
   search: SearchPage,
@@ -32,7 +56,7 @@ export function renderSearchPage(
   preferences: PagePreferences = { ...DEFAULT_PREFERENCES },
 ): string {
   const title = search.query ? `Search (${search.query}) | nitter` : "Search | nitter";
-  const hasTerms = Boolean(search.query || search.username || search.since || search.until || search.minLikes);
+  const hasTerms = Boolean(search.query || search.username || search.since || search.until || search.minLikes || search.filters?.length || search.excludes?.length);
   const base = search.username ? `/${encodeURIComponent(search.username)}/search` : "/search";
   const timeline = results?.timeline;
   const items = search.kind === "users"
@@ -86,18 +110,32 @@ export function renderSearchPage(
 
 function renderSearchForm(action: string, search: SearchPage): string {
   const directorySearch = search.kind === "users" || search.kind === "lists";
-  const panelOpen = !directorySearch && Boolean(search.since || search.until || search.minLikes);
+  const filters = search.filters ?? [];
+  const excludes = search.excludes ?? [];
+  // Upstream keeps the panel closed for profile searches.
+  const panelOpen = !directorySearch && !search.username
+    && Boolean(filters.length || excludes.length || search.since || search.until || search.minLikes);
   const placeholder = search.kind === "users" ? "Enter username..." : "Enter search...";
+  const queryInput = `<div class="pref-group pref-input pref-inline" title="q"><input type="text" name="q" value="${escapeAttribute(search.query)}" placeholder="${placeholder}" maxlength="500" dir="auto"${search.query ? "" : " autofocus"}></div>`;
+  const toggles = (prefix: "f" | "e", active: readonly string[]): string =>
+    `<div class="search-toggles">${SEARCH_TOGGLES.map(([name, label]) => `<label class="pref-group checkbox-container" title="${prefix}-${name}">${label}<input name="${prefix}-${name}" type="checkbox"${active.includes(name) ? " checked" : ""}><span class="checkbox"></span></label>`).join("")}</div>`;
+  const dateInput = (name: "since" | "until"): string =>
+    `<span class="date-input"><input type="date" name="${name}" value="${escapeAttribute(search[name] ?? "")}"><div class="icon-container"><span class="icon-calendar"></span></div></span>`;
   return `<form method="get" action="${escapeAttribute(action)}" class="search-field" autocomplete="off">
     <input type="hidden" name="f" value="${search.kind}">
-    <input type="text" name="q" value="${escapeAttribute(search.query)}" placeholder="${placeholder}" maxlength="500" dir="auto">
+    ${queryInput}
     <button type="submit" aria-label="Search"><span class="icon-search"></span></button>
     ${directorySearch ? "" : `<input id="search-panel-toggle" type="checkbox"${panelOpen ? " checked" : ""}>
-    <label for="search-panel-toggle" title="Advanced search"><span class="icon-down"></span></label>
+    <label for="search-panel-toggle"><span class="icon-down"></span></label>
     <div class="search-panel">
-      <label><span>Since</span><input type="date" name="since" value="${escapeAttribute(search.since ?? "")}"></label>
-      <label><span>Until</span><input type="date" name="until" value="${escapeAttribute(search.until ?? "")}"></label>
-      <label><span>Minimum likes</span><input type="number" name="min_faves" min="0" value="${escapeAttribute(search.minLikes ?? "")}"></label>
+      <span class="search-title">Filter</span>
+      ${toggles("f", filters)}
+      <span class="search-title">Exclude</span>
+      ${toggles("e", excludes)}
+      <div class="search-row">
+        <div><span class="search-title">Time range</span><div class="date-range">${dateInput("since")}<span class="search-title">-</span>${dateInput("until")}</div></div>
+        <div><span class="search-title">Minimum likes</span><div class="pref-group pref-input"><input type="number" name="min_faves" placeholder="Number..." min="0" step="1" value="${escapeAttribute(search.minLikes ?? "")}"></div></div>
+      </div>
     </div>`}
   </form>`;
 }
@@ -137,6 +175,8 @@ function searchUrl(base: string, search: SearchPage, cursor: string): string {
 
 function searchParams(search: SearchPage): URLSearchParams {
   const params = new URLSearchParams({ f: search.kind, q: search.query });
+  for (const filter of search.filters ?? []) params.set(`f-${filter}`, "on");
+  for (const exclude of search.excludes ?? []) params.set(`e-${exclude}`, "on");
   if (search.since) params.set("since", search.since);
   if (search.until) params.set("until", search.until);
   if (search.minLikes) params.set("min_faves", search.minLikes);
@@ -146,9 +186,12 @@ function searchParams(search: SearchPage): URLSearchParams {
 export function xSearchUrl(search: SearchPage): string {
   const terms: string[] = [];
   if (search.kind !== "users") {
+    const excludes = search.excludes ?? [];
     if (search.username) terms.push(`(from:${search.username})`);
     if (search.username && search.kind === "media") terms.push("(filter:self_threads OR -filter:replies)");
-    terms.push("include:nativeretweets");
+    if (!excludes.includes("nativeretweets")) terms.push("include:nativeretweets");
+    for (const filter of search.filters ?? []) terms.push(`filter:${filter}`);
+    for (const exclude of excludes.filter((name) => name !== "nativeretweets")) terms.push(`-filter:${exclude}`);
     if (search.since) terms.push(`since:${search.since}`);
     if (search.until) terms.push(`until:${search.until}`);
     if (search.minLikes) terms.push(`min_faves:${search.minLikes}`);

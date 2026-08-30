@@ -90,4 +90,37 @@ describe("serveSearchPage", () => {
       "profile-cursor",
     );
   });
+
+  it("forwards filter and exclude toggles into the upstream query", async () => {
+    const response = await serveSearchPage(
+      new Request("https://nitter.test/search?f=tweets&q=nim&f-media=on&f-quote=on&e-replies=on&e-nativeretweets=on&f-bogus=on&f-media=1"),
+      env,
+    );
+
+    expect(response.status).toBe(200);
+    expect(fetchSearchTimeline).toHaveBeenCalledWith(
+      "filter:media filter:quote -filter:replies nim",
+      "tweets",
+      { kind: "cookie" },
+      undefined,
+    );
+    expect(await response.text()).toContain("f-media=on&amp;f-quote=on&amp;e-replies=on&amp;e-nativeretweets=on");
+  });
+
+  it("searches with toggles alone and omits the retweet include when excluded", async () => {
+    const response = await serveSearchPage(new Request("https://nitter.test/search?f=tweets&q=&f-media=on&e-nativeretweets=on"), env);
+
+    expect(response.status).toBe(200);
+    expect(fetchSearchTimeline).toHaveBeenCalledWith(
+      "filter:media",
+      "tweets",
+      { kind: "cookie" },
+      undefined,
+    );
+
+    const elided = await serveSearchPage(new Request("https://nitter.test/search?f=tweets&q=&e-nativeretweets=on"), env);
+    expect(elided.status).toBe(200);
+    expect(fetchSearchTimeline).toHaveBeenCalledTimes(1);
+    expect(await elided.text()).toContain("No results found.");
+  });
 });
