@@ -1,6 +1,14 @@
 import type { CookieSession } from "../session";
 import { parseAccountInfo, parseProfile, type AccountInfo, type Profile } from "./profile";
-import { beginSessionRequest, endSessionRequest, recordApiStatus, recordLimitedSession } from "./rate-limit";
+import { metricsSink } from "./metrics-sink";
+import {
+  beginSessionRequest,
+  endSessionRequest,
+  parseLimitedReset,
+  parseRateLimitHeaders,
+  recordApiStatusParsed,
+  recordLimitedSessionParsed,
+} from "./rate-limit";
 import { fetchTidPair, generateTransactionId } from "./tid";
 
 const GRAPH_USER = "Gb-d6r0vxPOADdG62OEBpQ/UserByScreenName";
@@ -101,7 +109,15 @@ export async function fetchGraphql(
 
   const pair = await fetchTidPair();
   const transactionId = await generateTransactionId(path, pair);
-  beginSessionRequest(session.id);
+  const sink = metricsSink();
+  const pendingNonce = crypto.randomUUID();
+  // Metrics are best effort: a Durable Object outage must never fail or
+  // delay an X API request, so every sink RPC is fire-and-forget.
+  const record = (call: Promise<unknown>): void => {
+    void call.catch(() => {});
+  };
+  if (sink) record(sink.beginPending(session.id, pendingNonce));
+  else beginSessionRequest(session.id);
   try {
     const response = await fetch(url, {
       redirect: "manual",
@@ -133,9 +149,15 @@ export async function fetchGraphql(
     });
 
     const body = await readTextLimited(response, MAX_RESPONSE_BYTES);
-    recordApiStatus(operation, session, response.headers);
+    const status = parseRateLimitHeaders(response.headers);
+    if (sink && status) record(sink.recordApiStatus(operation, session.id, status));
+    else if (status) recordApiStatusParsed(operation, session.id, status);
     if (!response.ok) {
-      if (response.status === 429) recordLimitedSession(session, response.headers);
+      if (response.status === 429) {
+        const reset = parseLimitedReset(response.headers);
+        if (sink) record(sink.recordLimited(session.id, reset));
+        else recordLimitedSessionParsed(session.id, reset);
+      }
       throw new XApiError(response.status, summarizeError(body));
     }
 
@@ -147,7 +169,8 @@ export async function fetchGraphql(
     }
     return value;
   } finally {
-    endSessionRequest(session.id);
+    if (sink) record(sink.endPending(session.id, pendingNonce));
+    else endSessionRequest(session.id);
   }
 }
 

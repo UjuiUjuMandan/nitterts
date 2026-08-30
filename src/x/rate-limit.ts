@@ -1,13 +1,45 @@
 import type { CookieSession } from "../session";
 
-// Isolate-local metrics mirroring upstream Nitter's in-memory session pool
-// stats. Workers are stateless across isolates, so counts reflect only the
-// isolate serving /.health; headers still make them truthful per isolate.
-type ApiStatus = { limit: number; remaining: number; reset: number };
+// Isolate-local fallback for health metrics, used when no Durable Object
+// binding is installed (local dev, tests). Cross-isolate metrics live in the
+// HealthMetrics Durable Object; both keep the same report shapes.
+export type ApiStatus = { limit: number; remaining: number; reset: number };
+
+export type HealthReport = {
+  sessions: {
+    total: number;
+    limited: number;
+    oauth: { total: number; limited: number };
+    cookie: { total: number; limited: number };
+    oldest: string;
+    newest: string;
+    average: string;
+  };
+  requests: { total: number; apis: Record<string, number> };
+};
+
+export type DebugReport = Record<string, {
+  kind: "cookie";
+  apis: Record<string, { remaining: number; reset: number }>;
+  pending: number;
+  limited?: true;
+}>;
 
 const apiStats = new Map<string, Map<string, ApiStatus>>();
 const limitedSessions = new Map<string, number>();
 const pendingSessions = new Map<string, number>();
+
+export function parseRateLimitHeaders(headers: Headers): ApiStatus | undefined {
+  const limit = numberHeader(headers, "x-rate-limit-limit");
+  const remaining = numberHeader(headers, "x-rate-limit-remaining");
+  const reset = numberHeader(headers, "x-rate-limit-reset");
+  if (limit === undefined || remaining === undefined || reset === undefined) return undefined;
+  return { limit, remaining, reset };
+}
+
+export function parseLimitedReset(headers: Headers): number {
+  return numberHeader(headers, "x-rate-limit-reset") ?? Math.floor(Date.now() / 1000) + 900;
+}
 
 export function beginSessionRequest(sessionId: string): void {
   pendingSessions.set(sessionId, (pendingSessions.get(sessionId) ?? 0) + 1);
@@ -26,35 +58,29 @@ export function resetRateLimitTracking(): void {
 }
 
 export function recordApiStatus(operation: string, session: CookieSession, headers: Headers): void {
-  const limit = numberHeader(headers, "x-rate-limit-limit");
-  const remaining = numberHeader(headers, "x-rate-limit-remaining");
-  const reset = numberHeader(headers, "x-rate-limit-reset");
-  if (limit === undefined || remaining === undefined || reset === undefined) return;
+  const status = parseRateLimitHeaders(headers);
+  if (!status) return;
+  recordApiStatusParsed(operation, session.id, status);
+}
+
+export function recordApiStatusParsed(operation: string, sessionId: string, status: ApiStatus): void {
   let perSession = apiStats.get(operation);
   if (!perSession) {
     perSession = new Map();
     apiStats.set(operation, perSession);
   }
-  perSession.set(session.id, { limit, remaining, reset });
+  perSession.set(sessionId, status);
 }
 
 export function recordLimitedSession(session: CookieSession, headers: Headers): void {
-  const reset = numberHeader(headers, "x-rate-limit-reset") ?? Math.floor(Date.now() / 1000) + 900;
-  limitedSessions.set(session.id, reset);
+  recordLimitedSessionParsed(session.id, parseLimitedReset(headers));
 }
 
-export function sessionPoolHealth(sessions: CookieSession[]): {
-  sessions: {
-    total: number;
-    limited: number;
-    oauth: { total: number; limited: number };
-    cookie: { total: number; limited: number };
-    oldest: string;
-    newest: string;
-    average: string;
-  };
-  requests: { total: number; apis: Record<string, number> };
-} {
+export function recordLimitedSessionParsed(sessionId: string, reset: number): void {
+  limitedSessions.set(sessionId, reset);
+}
+
+export function sessionPoolHealth(sessions: CookieSession[]): HealthReport {
   const now = Math.floor(Date.now() / 1000);
   let oldest = Number.POSITIVE_INFINITY;
   let newest = 0;
@@ -101,19 +127,9 @@ export function sessionPoolHealth(sessions: CookieSession[]): {
   };
 }
 
-export function sessionPoolDebug(sessions: CookieSession[]): Record<string, {
-  kind: "cookie";
-  apis: Record<string, { remaining: number; reset: number }>;
-  pending: number;
-  limited?: true;
-}> {
+export function sessionPoolDebug(sessions: CookieSession[]): DebugReport {
   const now = Math.floor(Date.now() / 1000);
-  const list: Record<string, {
-    kind: "cookie";
-    apis: Record<string, { remaining: number; reset: number }>;
-    pending: number;
-    limited?: true;
-  }> = {};
+  const list: DebugReport = {};
   for (const session of sessions) {
     const entry: typeof list[string] = { kind: "cookie", apis: {}, pending: pendingSessions.get(session.id) ?? 0 };
     if (isLimited(session.id, now)) entry.limited = true;

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { onRequestGet as serveHealth } from "../functions/.health";
 import { onRequestGet as serveSessions } from "../functions/.sessions";
 import type { CookieSession } from "../src/session";
+import { installMetricsSink, resetMetricsSink } from "../src/x/metrics-sink";
 import { beginSessionRequest, endSessionRequest, recordApiStatus, recordLimitedSession, resetRateLimitTracking, sessionPoolDebug, sessionPoolHealth } from "../src/x/rate-limit";
 
 function snowflakeFor(isoDate: string): string {
@@ -19,6 +20,7 @@ const sessions = [oldSession, newSession];
 describe("session pool health", () => {
   beforeEach(() => {
     resetRateLimitTracking();
+    resetMetricsSink();
   });
 
   it("summarizes sessions and per-api request usage", () => {
@@ -110,5 +112,42 @@ describe("session pool health", () => {
     } as never);
     expect(allowed.status).toBe(200);
     expect(JSON.parse(await allowed.text())).toEqual({});
+  });
+
+  it("serves reports from the installed Durable Object sink", async () => {
+    const sessionId = snowflakeFor("2022-01-01T00:00:00Z");
+    const requests: string[] = [];
+    const report = {
+      sessions: {
+        total: 1,
+        limited: 1,
+        oauth: { total: 0, limited: 0 },
+        cookie: { total: 1, limited: 1 },
+        oldest: "2022-01-01T00:00:00Z",
+        newest: "2022-01-01T00:00:00Z",
+        average: "2022-01-01T00:00:00Z",
+      },
+      requests: { total: 7, apis: { UserByScreenName: 7 } },
+    };
+    installMetricsSink({
+      getByName: () => ({
+        getHealth: async (ids: string[]) => {
+          requests.push(`health:${ids.join(",")}`);
+          return report;
+        },
+      }),
+    } as never);
+
+    const response = await serveHealth({
+      request: new Request("https://nitter.test/.health"),
+      env: {
+        NITTER_SESSIONS: [
+          JSON.stringify({ kind: "cookie", username: "bob", id: sessionId, auth_token: "a", ct0: "c" }),
+        ].join("\n"),
+      },
+    } as never);
+    expect(response.status).toBe(200);
+    expect(JSON.parse(await response.text())).toEqual(report);
+    expect(requests).toEqual([`health:${sessionId}`]);
   });
 });

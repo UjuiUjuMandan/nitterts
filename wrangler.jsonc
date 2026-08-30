@@ -3,5 +3,10 @@
   "name": "nitterts",
   "pages_build_output_dir": "./public",
   "compatibility_date": "2026-08-26",
-  "compatibility_flags": ["nodejs_compat"]
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [
+      { "name": "HEALTH_METRICS", "class_name": "HealthMetrics", "script_name": "nitterts-health" }
+    ]
+  }
 }
