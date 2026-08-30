@@ -1,7 +1,5 @@
 # NitterTS
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/UjuiUjuMandan/nitterts)
-
 A TypeScript port of [Nitter](https://github.com/zedeus/nitter) running on Cloudflare Pages.
 Styles and front-end scripts are built straight from the upstream `nitter` submodule, and
 behavior tracks the original: timelines, search, media proxying (`/pic`, `/video`), RSS
