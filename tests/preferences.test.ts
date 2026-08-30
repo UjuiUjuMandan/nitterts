@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { DEFAULT_PREFERENCES, encodePrefs, preferencesCookies, preferencesFromBookmark, preferencesFromRequest, preferencesRedirect } from "../src/preferences";
+import { beforeEach, describe, expect, it } from "vitest";
+import { DEFAULT_PREFERENCES, encodePrefs, installPreferenceDefaults, preferencesCookies, preferencesFromBookmark, preferencesFromRequest, preferencesRedirect, resetPreferenceDefaults } from "../src/preferences";
 import { renderProfilePage, renderTweet } from "../src/render/profile";
 import { renderHomePage } from "../src/render/home";
 import { renderAboutPage } from "../src/render/about";
@@ -54,6 +54,10 @@ function cookieHeader(preferences: typeof DEFAULT_PREFERENCES): string {
 }
 
 describe("preferences", () => {
+  beforeEach(() => {
+    resetPreferenceDefaults();
+  });
+
   it("uses upstream per-preference cookies, bookmarks, and temporary query overrides", () => {
     const preferences = {
       ...DEFAULT_PREFERENCES,
@@ -75,6 +79,64 @@ describe("preferences", () => {
     expect(redirect?.headers.get("location")).toBe("https://nitter.test/alice?q=test");
     expect(redirect?.headers.get("set-cookie")).toContain("hideBanner=on; Path=/; Max-Age=31536000");
     expect(redirect?.headers.get("set-cookie")).toContain("stickyNav=; Path=/; Max-Age=0");
+  });
+
+  it("sources link replacement defaults from the instance environment", async () => {
+    expect(preferencesFromRequest(new Request("https://nitter.test/"))).toMatchObject({
+      replaceTwitter: "",
+      replaceYouTube: "",
+      replaceReddit: "",
+    });
+
+    installPreferenceDefaults({
+      NITTER_REPLACE_TWITTER: "nitterts.pages.dev",
+      NITTER_REPLACE_YOUTUBE: "piped.example",
+      NITTER_REPLACE_REDDIT: "libreddit.example",
+    });
+    expect(preferencesFromRequest(new Request("https://nitter.test/"))).toMatchObject({
+      replaceTwitter: "nitterts.pages.dev",
+      replaceYouTube: "piped.example",
+      replaceReddit: "libreddit.example",
+    });
+
+    // Env defaults are treated as defaults: bookmarks omit them and cookies win.
+    expect(encodePrefs(preferencesFromRequest(new Request("https://nitter.test/")))).not.toContain("replaceTwitter");
+    expect(preferencesFromRequest(new Request("https://nitter.test", { headers: { cookie: "replaceTwitter=" } }))).toMatchObject({ replaceTwitter: "" });
+
+    const linked = {
+      ...tweet("7"),
+      text: "watch",
+      links: [{ kind: "url" as const, start: 0, end: 5, display: "watch", url: "https://twitter.com/alice/status/1" }],
+    };
+    expect(renderTweet(linked, false, preferencesFromRequest(new Request("https://nitter.test/")))).toContain('href="https://nitterts.pages.dev/alice/status/1"');
+
+    installPreferenceDefaults({ NITTER_REPLACE_YOUTUBE: "https://piped.example/video" });
+    expect(preferencesFromRequest(new Request("https://nitter.test/"))).toMatchObject({ replaceYouTube: "piped.example" });
+
+    const settings = serveSettingsPage(new Request("https://nitter.test/settings"));
+    expect(await settings.text()).toContain('name="replaceTwitter" id="replaceTwitter" type="text" placeholder="Nitter hostname" value="nitterts.pages.dev"');
+
+    const headers = {
+      origin: "https://nitter.test",
+      "content-type": "application/x-www-form-urlencoded",
+      "sec-fetch-site": "same-origin",
+    };
+    const same = await serveSavePreferences(new Request("https://nitter.test/saveprefs", {
+      method: "POST",
+      headers,
+      body: "replaceTwitter=nitterts.pages.dev&returnTo=%2Fsettings",
+    }));
+    expect(same.headers.get("set-cookie")).toContain("replaceTwitter=; Path=/; Max-Age=0");
+
+    const cleared = await serveSavePreferences(new Request("https://nitter.test/saveprefs", {
+      method: "POST",
+      headers,
+      body: "returnTo=%2Fsettings",
+    }));
+    expect(cleared.headers.get("set-cookie")).toContain("replaceTwitter=; Path=/; Max-Age=31536000");
+
+    const redirect = preferencesRedirect(new Request("https://nitter.test/?prefs=hideBanner=on"));
+    expect(redirect?.headers.get("set-cookie")).toContain("replaceTwitter=; Path=/; Max-Age=0");
   });
 
   it("saves and resets preferences with secure same-origin cookies", async () => {

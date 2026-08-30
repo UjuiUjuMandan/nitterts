@@ -71,6 +71,56 @@ export const DEFAULT_PREFERENCES: Readonly<PagePreferences> = Object.freeze({
   replaceReddit: "",
 });
 
+// Instance-level link replacement defaults, sourced from NITTER_REPLACE_*
+// environment variables (set NITTER_REPLACE_TWITTER=nitterts.pages.dev to
+// rewrite tweet links to this instance). User cookies still win.
+let replaceDefaults: Record<ReplaceKey, string> = {
+  replaceTwitter: DEFAULT_PREFERENCES.replaceTwitter,
+  replaceYouTube: DEFAULT_PREFERENCES.replaceYouTube,
+  replaceReddit: DEFAULT_PREFERENCES.replaceReddit,
+};
+
+export function installPreferenceDefaults(env: {
+  NITTER_REPLACE_TWITTER?: string;
+  NITTER_REPLACE_YOUTUBE?: string;
+  NITTER_REPLACE_REDDIT?: string;
+} | undefined): void {
+  const apply = (key: ReplaceKey, name: string, value: string | undefined): void => {
+    if (value === undefined) return;
+    const host = sanitizeReplace(value);
+    if (host === "" || validReplacementHost(host)) {
+      replaceDefaults[key] = host;
+      return;
+    }
+    // An invalid host would silently disable replacement instance-wide.
+    console.warn(JSON.stringify({ message: `ignoring invalid ${name}`, value: host }));
+  };
+  apply("replaceTwitter", "NITTER_REPLACE_TWITTER", env?.NITTER_REPLACE_TWITTER);
+  apply("replaceYouTube", "NITTER_REPLACE_YOUTUBE", env?.NITTER_REPLACE_YOUTUBE);
+  apply("replaceReddit", "NITTER_REPLACE_REDDIT", env?.NITTER_REPLACE_REDDIT);
+}
+
+function validReplacementHost(value: string): boolean {
+  try {
+    const url = new URL(`https://${value}`);
+    return url.host === value && url.hostname.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+export function resetPreferenceDefaults(): void {
+  replaceDefaults = {
+    replaceTwitter: DEFAULT_PREFERENCES.replaceTwitter,
+    replaceYouTube: DEFAULT_PREFERENCES.replaceYouTube,
+    replaceReddit: DEFAULT_PREFERENCES.replaceReddit,
+  };
+}
+
+export function defaultPreferences(): PagePreferences {
+  return { ...DEFAULT_PREFERENCES, ...replaceDefaults };
+}
+
 const PREFERENCE_NAMES = [...PREFERENCE_KEYS, ...SELECT_KEYS, ...REPLACE_KEYS] as const;
 const COOKIE_MAX_AGE = 31_536_000;
 
@@ -134,7 +184,7 @@ function addBookmarkOverrides(overrides: Map<string, string>, bookmark: string):
 }
 
 function applyOverrides(overrides: Map<string, string>): PagePreferences {
-  const preferences: PagePreferences = { ...DEFAULT_PREFERENCES };
+  const preferences: PagePreferences = defaultPreferences();
   for (const [name, raw] of overrides) {
     if ((PREFERENCE_KEYS as readonly string[]).includes(name)) {
       preferences[name as PreferenceKey] = raw === "on" || raw === "true" || raw === "1";
@@ -167,7 +217,7 @@ function preferenceValue(preferences: PagePreferences, name: string): string {
 }
 
 function isDefault(preferences: PagePreferences, name: string): boolean {
-  return preferenceValue(preferences, name) === preferenceValue(DEFAULT_PREFERENCES, name);
+  return preferenceValue(preferences, name) === preferenceValue(defaultPreferences(), name);
 }
 
 // Mirrors upstream Nitter: one cookie per preference, only non-default values

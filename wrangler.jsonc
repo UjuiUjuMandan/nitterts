@@ -4,6 +4,11 @@
   "pages_build_output_dir": "./public",
   "compatibility_date": "2026-08-26",
   "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "NITTER_REPLACE_TWITTER": "nitterts.pages.dev",
+    "NITTER_REPLACE_YOUTUBE": "",
+    "NITTER_REPLACE_REDDIT": ""
+  },
   "durable_objects": {
     "bindings": [
       { "name": "HEALTH_METRICS", "class_name": "HealthMetrics", "script_name": "nitterts-health" }
