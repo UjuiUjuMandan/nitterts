@@ -21,6 +21,12 @@ describe("renderMarkdown", () => {
         "Liberapay: https://liberapay.com/zedeus \\",
         "Patreon: https://patreon.com/nitter",
         "",
+        "tracked with your [browser's",
+        "fingerprint](https://restoreprivacy.com/browser-fingerprinting/), [no",
+        "JavaScript required](https://noscriptfingerprint.com/).",
+        "",
+        "- Lightweight (for [@nim_lang](/nim_lang), 60KB vs 784KB)",
+        "",
         "[xss](javascript:alert(1)) stays inert",
       ].join("\n"),
     );
@@ -32,6 +38,9 @@ describe("renderMarkdown", () => {
     expect(html).toContain("<ul><li>Item <strong>bold</strong></li><li>Item <code>code</code> and <em>em</em></li></ul>");
     expect(html).toContain("<h2>Section</h2>");
     expect(html).toContain("Liberapay: https://liberapay.com/zedeus<br>\nPatreon:");
+    expect(html).toContain("<a href=\"https://restoreprivacy.com/browser-fingerprinting/\">browser&#39;s fingerprint</a>");
+    expect(html).toContain('<a href="https://noscriptfingerprint.com/">no JavaScript required</a>');
+    expect(html).toContain('<a href="/nim_lang">@nim_lang</a>');
     expect(html).not.toContain("javascript:");
   });
 

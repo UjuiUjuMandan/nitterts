@@ -4,6 +4,9 @@
 
 import { escapeAttribute, escapeHtml } from "./render/profile";
 
+// Placeholder for a hard line break; survives inline escaping.
+const HARD_BREAK = "\u0000";
+
 export function renderMarkdown(markdown: string): string {
   const lines = markdown.split("\n");
   const html: string[] = [];
@@ -12,13 +15,16 @@ export function renderMarkdown(markdown: string): string {
 
   const flushParagraph = (): void => {
     if (!paragraph.length) return;
-    const hardBreaks = paragraph.map((line) => /\\\s*$/.test(line));
-    const stripped = paragraph.map((line) => line.replace(/\s*\\$/, ""));
-    let text = "";
-    stripped.forEach((line, index) => {
-      text += renderInline(line);
-      if (index < stripped.length - 1) text += hardBreaks[index] ? "<br>\n" : " ";
-    });
+    // Join soft-wrapped lines before inline rendering so links may span
+    // lines; a trailing backslash becomes a sentinel that turns into <br>.
+    const stripped = paragraph
+      .map((line) => line.replace(/\s*\\$/, "") + (/\\\s*$/.test(line) ? HARD_BREAK : ""))
+      .join(" ")
+      .trimEnd()
+      .replace(/\u0000$/, "");
+    const text = renderInline(stripped)
+      .replaceAll(`${HARD_BREAK} `, "<br>\n")
+      .replaceAll(HARD_BREAK, "");
     html.push(`<p>${text}</p>`);
     paragraph = [];
   };
@@ -86,6 +92,6 @@ function renderToken(token: string): string {
 }
 
 function link(href: string, text: string): string {
-  if (!/^https?:\/\//i.test(href)) return escapeHtml(text);
+  if (!/^https?:\/\//i.test(href) && !href.startsWith("/")) return escapeHtml(text);
   return `<a href="${escapeAttribute(href)}">${escapeHtml(text)}</a>`;
 }
