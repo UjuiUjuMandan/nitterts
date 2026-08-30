@@ -24,7 +24,7 @@ export function renderAboutPage(profile: Profile, preferences: PagePreferences =
     <main class="about-account">
       <header class="about-account-header">
         ${profile.avatar ? `<a class="about-account-avatar" href="${base}"><img class="avatar${preferences.squareAvatars ? "" : " round"}" src="${escapeAttribute(mediaProxyUrl(profile.avatar))}" alt=""></a>` : ""}
-        <div class="about-account-name"><a class="profile-card-fullname" href="${base}">${escapeHtml(profile.name)}</a><a class="profile-card-username" href="${base}">@${escapeHtml(profile.username)}</a></div>
+        <div class="about-account-name"><a class="profile-card-fullname" href="${base}">${escapeHtml(profile.name)}</a></div><a class="profile-card-username" href="${base}">@${escapeHtml(profile.username)}</a>
       </header>
       <div class="about-account-body">
         ${joined ? aboutRow("calendar", "Date joined", joined) : ""}

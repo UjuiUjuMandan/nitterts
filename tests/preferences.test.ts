@@ -330,6 +330,7 @@ describe("preferences", () => {
       overrideVerifiedYear: 0,
     };
     const about = renderAboutPage({ ...profile, basedIn: "Japan" }, preferences, accountInfo);
+    expect(about).toContain('</a></div><a class="profile-card-username" href="/alice">@alice</a>');
     expect(about).toContain("Account based in");
     expect(about).toContain("1 username change");
     expect(about).toContain("Last on November 2023");
