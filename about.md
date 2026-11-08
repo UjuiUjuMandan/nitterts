@@ -43,14 +43,9 @@ Twitter account.
 
 ## Donating
 
-Liberapay: https://liberapay.com/zedeus \
-Patreon: https://patreon.com/nitter \
-BTC: bc1qpqpzjkcpgluhzf7x9yqe7jfe8gpfm5v08mdr55 \
-ETH: 0x24a0DB59A923B588c7A5EBd0dBDFDD1bCe9c4460 \
-XMR: 42hKayRoEAw4D6G6t8mQHPJHQcXqofjFuVfavqKeNMNUZfeJLJAcNU19i1bGdDvcdN6romiSscWGWJCczFLe9RFhM3d1zpL \
-SOL: ANsyGNXFo6osuFwr1YnUqif2RdoYRhc27WdyQNmmETSW \
-ZEC: u1vndfqtzyy6qkzhkapxelel7ams38wmfeccu3fdpy2wkuc4erxyjm8ncjhnyg747x6t0kf0faqhh2hxyplgaum08d2wnj4n7cyu9s6zhxkqw2aef4hgd4s6vh5hpqvfken98rg80kgtgn64ff70djy7s8f839z00hwhuzlcggvefhdlyszkvwy3c7yw623vw3rvar6q6evd3xcvveypt
+There are for NitterTS, not the original Nitter.
 
-## Contact
-
-Feel free to join our [Matrix channel](https://matrix.to/#/#nitter:matrix.org).
+BTC: bc1q2shganduc686k7r96dfw7acyjzkmuyxaguntfy \
+ETH: 0x397479Af7d403C074Ef53677767534Af20Ef156E \
+XMR: 85xXZpeEPPvHMsWmjL1U3JTqoyaFgvVdrKcD8FxWFYzC8d2uwGY94KSbfWeWfwS8FD9hfzYvDVbUs4Awg2s9toEt2Pj7xbT \
+SOL: 87TtMwgbycemXS4ZfiDCVi4xREgjVvMK2sge43yqkNgD
