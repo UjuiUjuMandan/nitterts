@@ -43,7 +43,7 @@ Twitter account.
 
 ## Donating
 
-There are for NitterTS, not the original Nitter.
+These are for NitterTS, not the original Nitter.
 
 BTC: bc1q2shganduc686k7r96dfw7acyjzkmuyxaguntfy \
 ETH: 0x397479Af7d403C074Ef53677767534Af20Ef156E \
