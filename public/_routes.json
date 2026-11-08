@@ -1,5 +1,5 @@
 {
   "version": 1,
   "include": ["/*"],
-  "exclude": ["/logo.png", "/favicon.ico", "/css/*", "/fonts/*", "/js/*"]
+  "exclude": ["/logo.png", "/favicon.ico", "/css/*", "/fonts/*", "/js/*", "/.well-known/status.d420.de"]
 }
