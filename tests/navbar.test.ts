@@ -6,13 +6,14 @@ import { renderErrorPage, renderNavbar } from "../src/render/profile";
 import { renderSearchPage } from "../src/render/search";
 
 describe("right navbar", () => {
-  it("renders navbar actions with page context without upstream donations", () => {
+  it("renders navbar actions with page context and NitterTS donations", () => {
     const html = renderNavbar("/alice", "/alice/media?cursor=next");
     expect(html).toContain('class="icon-search" title="Search" href="/search"');
     expect(html).toContain('class="icon-rss" title="RSS Feed" href="/alice/rss"');
     expect(html).toContain('class="icon-bird" title="Open in X" href="https://x.com/alice/media"');
-    expect(html).not.toContain("liberapay");
-    expect(html).not.toContain('<svg class="lp"');
+    expect(html).toContain('href="https://liberapay.com/NitterTS/" title="Donate on Liberapay"');
+    expect(html).not.toContain("liberapay.com/zedeus");
+    expect(html).toContain('<svg class="lp"');
     expect(html).toContain('class="icon-info" title="About" href="/about"');
     expect(html).toContain('class="icon-cog" title="Preferences" href="/settings?referer=%2Falice%2Fmedia%3Fcursor%3Dnext"');
   });
