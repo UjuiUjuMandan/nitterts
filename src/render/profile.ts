@@ -231,7 +231,8 @@ export function renderTweet(source: Tweet, main = false, preferences: PagePrefer
       ? '<div class="pinned"><span><span class="icon-pin"></span> Pinned Tweet</span></div>'
       : "";
   const media = renderMedia(tweet, preferences);
-  const quote = tweet.quote ? renderQuote(tweet.quote, preferences) : "";
+  const quote = tweet.quote ? renderQuote(tweet.quote, preferences)
+    : tweet.quoteUnavailable ? '<div class="quote unavailable"><span class="unavailable-quote">This tweet is unavailable</span></div>' : "";
 
   const permalink = `/${encodeURIComponent(tweet.author.username)}/status/${encodeURIComponent(tweet.id)}`;
   return `<div class="timeline-item tweet${main ? " main-tweet-item" : ""}${threadLast ? " thread-last" : ""}">

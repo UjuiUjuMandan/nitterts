@@ -23,6 +23,42 @@ const wrapNote = (result: unknown) => ({
 });
 
 describe("parseTimeline", () => {
+  it.each(["quotedPostResults", "quoted_status_result", "quoted_tweet_results"])("shows unavailable quotes from %s without dropping the containing post", (field) => {
+    for (const quote of [
+      { result: { __typename: "TweetTombstone" } },
+      { result: { __typename: "TweetUnavailable" } },
+      {},
+    ]) {
+      const parsed = parseTimeline(wrapNote({
+        rest_id: "2115608405847265366", details: { full_text: "哈人" }, [field]: quote,
+      })).tweets[0];
+      expect(parsed.text).toBe("哈人");
+      expect(parsed.quote).toBeUndefined();
+      expect(parsed.quoteUnavailable).toBe(true);
+      const html = renderTweet(parsed, true, DEFAULT_PREFERENCES);
+      expect(html).toContain('class="quote unavailable"');
+      expect(html).toContain("This tweet is unavailable");
+      expect(html).toContain("哈人");
+      expect(html).not.toContain('class="quote-link"');
+    }
+  });
+
+  it("distinguishes available quotes and ordinary posts from unavailable quotes", () => {
+    const base = { rest_id: "300", details: { full_text: "main" } };
+    const ordinary = parseTimeline(wrapNote(base)).tweets[0];
+    expect(ordinary.quoteUnavailable).toBeUndefined();
+    expect(renderTweet(ordinary, true, DEFAULT_PREFERENCES)).not.toContain("This tweet is unavailable");
+    const quoted = parseTimeline(wrapNote({
+      ...base, quotedPostResults: { result: { rest_id: "301", details: { full_text: "available quote" } } },
+    })).tweets[0];
+    expect(quoted.quote?.text).toBe("available quote");
+    expect(quoted.quoteUnavailable).toBeUndefined();
+    const html = renderTweet(quoted, true, DEFAULT_PREFERENCES);
+    expect(html).toContain("available quote");
+    expect(html).toContain('class="quote quote-big"');
+    expect(html).not.toContain("This tweet is unavailable");
+  });
+
   it.each(["modern", "legacy"])("moves hidden %s reply mentions into clickable reply context", (format) => {
     const prefix = "@alice @bob ";
     const body = "Hi 😀 @carol https://t.co/x";

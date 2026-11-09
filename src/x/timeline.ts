@@ -58,6 +58,7 @@ export type Tweet = {
   communityNoteLinks?: TweetLink[];
   retweet?: Tweet;
   quote?: Tweet;
+  quoteUnavailable?: boolean;
   pinned: boolean;
 };
 
@@ -552,8 +553,12 @@ export function parseTweet(value: Record<string, unknown>, depth = 0): Tweet | u
   const quoteResult = firstRecord(value, [
     ["quoted_status_result", "result"],
     ["quotedPostResults", "result"],
+    ["quoted_tweet_results", "result"],
   ]);
   if (quoteResult) tweet.quote = parseTweet(quoteResult, depth + 1);
+  if (!tweet.quote && (quoteResult || firstRecord(value, [
+    ["quoted_status_result"], ["quotedPostResults"], ["quoted_tweet_results"],
+  ]))) tweet.quoteUnavailable = true;
 
   return tweet;
 }
