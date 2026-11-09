@@ -692,6 +692,10 @@ function parseLinks(
   noteText: string,
 ): TweetLink[] {
   const links: TweetLink[] = [];
+  // NoteTweet text has its own offsets and may omit leading reply mentions.
+  // Never apply short-post entities to the expanded body.
+  const shortPost = noteText ? undefined : value;
+  const shortDetails = noteText ? undefined : details;
   const push = (kind: TweetLink["kind"], entity: Record<string, unknown> | undefined, url: string, display?: string) => {
     if (!entity) return;
     const range = optionalArray(entity.indices) ?? [];
@@ -701,19 +705,19 @@ function parseLinks(
     links.push({ kind, start, end, url, display: display || "" });
   };
   const hashtagEntities = [
-    ...(optionalArray(value.hashtag_entities) ?? []),
-    ...(optionalArray(details?.hashtag_entities) ?? []),
+    ...(optionalArray(shortPost?.hashtag_entities) ?? []),
+    ...(optionalArray(shortDetails?.hashtag_entities) ?? []),
   ];
   const cashtagEntities = [
-    ...(optionalArray(value.cashtag_entities) ?? []),
-    ...(optionalArray(details?.cashtag_entities) ?? []),
+    ...(optionalArray(shortPost?.cashtag_entities) ?? []),
+    ...(optionalArray(shortDetails?.cashtag_entities) ?? []),
   ];
   const mentionEntities = [
-    ...(optionalArray(value.mention_entities) ?? []),
-    ...(optionalArray(details?.mention_entities) ?? []),
+    ...(optionalArray(shortPost?.mention_entities) ?? []),
+    ...(optionalArray(shortDetails?.mention_entities) ?? []),
   ];
 
-  for (const entity of [...(optionalArray(value.url_entities) ?? []), ...(optionalArray(details?.url_entities) ?? [])]) {
+  for (const entity of [...(optionalArray(shortPost?.url_entities) ?? []), ...(optionalArray(shortDetails?.url_entities) ?? [])]) {
     const record = optionalRecord(entity);
     if (!record) continue;
     push("url", record, stringValue(record.expanded_url) || stringValue(record.url), stringValue(record.display_url));
@@ -738,9 +742,7 @@ function parseLinks(
   }
 
   const noteEntities = optionalRecord(recordAt(value, ["note_tweet", "note_tweet_results", "result", "entity_set"]));
-  const legacyEntities = (noteText && noteEntities ? noteEntities : undefined)
-    ?? optionalRecord(legacy?.entities)
-    ?? noteEntities;
+  const legacyEntities = noteText ? noteEntities : optionalRecord(legacy?.entities) ?? noteEntities;
   if (legacyEntities) {
     for (const entity of optionalArray(legacyEntities.urls) ?? []) {
       const record = optionalRecord(entity);

@@ -23,6 +23,41 @@ const wrapNote = (result: unknown) => ({
 });
 
 describe("parseTimeline", () => {
+  it("uses only expanded note entities when reply prefixes change offsets", () => {
+    const text = "Are we Seriously thinking @TheDemocrats are Self Aware ? 🫃";
+    const result = {
+      __typename: "Tweet",
+      rest_id: "2119077286573924520",
+      details: { full_text: `@ronrule ${text}` },
+      mention_entities: [
+        { screen_name: "ronrule", indices: [0, 8] },
+        { screen_name: "TheDemocrats", indices: [35, 48] },
+      ],
+      // Other short-post entity kinds must not overwrite note text either.
+      url_entities: [{ url: "https://t.co/x", expanded_url: "https://example.com", indices: [0, 8] }],
+      legacy: { entities: { user_mentions: [{ screen_name: "ronrule", indices: [0, 8] }] } },
+      note_tweet: { note_tweet_results: { result: {
+        text,
+        entity_set: { user_mentions: [{ screen_name: "TheDemocrats", indices: [26, 39] }] },
+      } } },
+    };
+    const parsed = parseTimeline(wrapNote(result)).tweets[0];
+    expect(parsed.text).toBe(text);
+    expect(parsed.links).toEqual([
+      { kind: "mention", start: 26, end: 39, url: "/TheDemocrats", display: "@TheDemocrats" },
+    ]);
+    const html = renderTweet(parsed, true, DEFAULT_PREFERENCES);
+    expect(html).toContain('Are we Seriously thinking <a href="/TheDemocrats"');
+    expect(html).not.toContain("@ronrule");
+
+    const withoutEntities = parseTimeline(wrapNote({
+      ...result,
+      note_tweet: { note_tweet_results: { result: { text } } },
+    })).tweets[0];
+    expect(withoutEntities.links).toEqual([]);
+    expect(renderTweet(withoutEntities, true, DEFAULT_PREFERENCES)).toContain(text);
+  });
+
   it("parses numeric created_at_ms from modern tweet details", () => {
     const modern = {
       __typename: "Tweet",
