@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CookieSession } from "../src/session";
 import { DEFAULT_PREFERENCES } from "../src/preferences";
 import { renderStatusPage } from "../src/render/status";
-import { fetchConversation, parseConversation, TweetNotFoundError } from "../src/x/conversation";
+import { fetchConversation, parseConversation, parseReplySort, TweetNotFoundError } from "../src/x/conversation";
 import { fetchGraphql } from "../src/x/client";
 
 vi.mock("../src/x/client", () => ({ fetchGraphql: vi.fn() }));
@@ -67,6 +67,17 @@ describe("fetchConversation pagination", () => {
 
   beforeEach(() => vi.resetAllMocks());
 
+  it.each(["Relevance", "Recency", "Likes"] as const)("uses %s ranking for replies and focal-post fallback", async (sort) => {
+    vi.mocked(fetchGraphql)
+      .mockResolvedValueOnce(response([threadEntry("3", "bob", "reply")]))
+      .mockResolvedValueOnce(response([tweetEntry("2", "alice", "main")]));
+    await fetchConversation("2", session, "current", sort);
+    expect(fetchGraphql).toHaveBeenCalledTimes(2);
+    for (const call of vi.mocked(fetchGraphql).mock.calls) {
+      expect(call[1]).toMatchObject({ ranking_mode: sort });
+    }
+  });
+
   it("loads the focal post separately when a reply page omits it", async () => {
     vi.mocked(fetchGraphql)
       .mockResolvedValueOnce(response([
@@ -119,6 +130,27 @@ describe("fetchConversation pagination", () => {
 });
 
 describe("parseConversation", () => {
+  it.each(["Relevance", "Recency", "Likes"] as const)("renders %s sort and preserves it through pagination", (sort) => {
+    const conversation = parseConversation(response([
+      tweetEntry("2", "alice", "main"),
+      threadEntry("3", "bob", "reply"),
+      { entryId: "cursor-bottom-0", content: { value: "next+/=" } },
+    ]), "2");
+    const html = renderStatusPage(conversation, DEFAULT_PREFERENCES, "old", sort);
+    expect(html).toContain("Sort replies:");
+    expect(html.match(/class="reply-sort-option active"/g)).toHaveLength(1);
+    expect(html).toContain(`class="reply-sort-option active" href="?sort=${sort}#r"`);
+    for (const [mode, label] of [["Relevance", "Relevant"], ["Recency", "Recent"], ["Likes", "Liked"]]) {
+      expect(html).toContain(`href="?sort=${mode}#r">${label}</a>`);
+    }
+    const query = sort === "Relevance" ? "" : `sort=${sort}&amp;`;
+    expect(html).toContain(`href="/alice/status/2?${query}cursor=next%2B%2F%3D#r">Load more`);
+    expect(html).toContain(`href="/alice/status/2${sort === "Relevance" ? "" : `?sort=${sort}`}#r">Load newest`);
+    expect(html).not.toContain("cursor=old");
+    expect(renderStatusPage(conversation, { ...DEFAULT_PREFERENCES, hideReplies: true }, "old", sort))
+      .not.toContain('class="reply-sort"');
+  });
+
   it.each(["entryId", "entry_id"])("filters promoted entries and thread items using %s", (idKey) => {
     const promotedItem = {
       [idKey]: "conversationthread-4-promoted-tweet-4-ad",
@@ -235,5 +267,14 @@ describe("parseConversation", () => {
     expect(withRelated).toContain('class="related-tweets"');
     expect(withRelated).toContain("Related tweets");
     expect(withRelated).toContain("related too");
+  });
+});
+
+describe("parseReplySort", () => {
+  it.each([
+    [null, "Relevance"], ["", "Relevance"], ["unknown", "Relevance"],
+    ["Relevance", "Relevance"], ["recency", "Recency"], ["RECENCY", "Recency"], ["likes", "Likes"],
+  ])("normalizes %s to %s", (input, expected) => {
+    expect(parseReplySort(input)).toBe(expected);
   });
 });

@@ -4,6 +4,16 @@ import { parseTweet, type Tweet } from "./timeline";
 
 const GRAPH_CONVERSATION = "OZMbEnEa96AN8Pq6HyTWdw/ConversationTimeline";
 
+export type ReplySort = "Relevance" | "Recency" | "Likes";
+
+export function parseReplySort(value: string | null): ReplySort {
+  switch (value?.toLowerCase()) {
+    case "recency": return "Recency";
+    case "likes": return "Likes";
+    default: return "Relevance";
+  }
+}
+
 export type ConversationThread = {
   tweets: Tweet[];
   hasMore: boolean;
@@ -22,10 +32,11 @@ export async function fetchConversation(
   tweetId: string,
   session: CookieSession,
   cursor?: string,
+  sort: ReplySort = "Relevance",
 ): Promise<Conversation> {
   const variables: Record<string, unknown> = {
     postId: tweetId,
-    ranking_mode: "Relevance",
+    ranking_mode: sort,
     includeHasBirdwatchNotes: false,
     includePromotedContent: false,
     withBirdwatchNotes: true,
@@ -40,7 +51,7 @@ export async function fetchConversation(
     if (!cursor || !(error instanceof TweetNotFoundError)) throw error;
     // Reply pages can omit the focal post. Keep their replies and cursor,
     // fetching only the missing post from the initial conversation.
-    const initial = await fetchConversation(tweetId, session);
+    const initial = await fetchConversation(tweetId, session, undefined, sort);
     return parseConversation(value, tweetId, initial.tweet);
   }
 }

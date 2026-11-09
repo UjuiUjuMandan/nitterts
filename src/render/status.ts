@@ -1,19 +1,24 @@
-import type { Conversation, ConversationThread } from "../x/conversation";
+import type { Conversation, ConversationThread, ReplySort } from "../x/conversation";
 import { bodyClass, DEFAULT_PREFERENCES, type PagePreferences } from "../preferences";
 import { escapeAttribute, escapeHtml, headScripts, renderNavbar, renderTweet, themeLink } from "./profile";
 
-export function renderStatusPage(conversation: Conversation, preferences: PagePreferences = { ...DEFAULT_PREFERENCES }, currentCursor?: string): string {
+export function renderStatusPage(conversation: Conversation, preferences: PagePreferences = { ...DEFAULT_PREFERENCES }, currentCursor?: string, sort: ReplySort = "Relevance"): string {
   const { tweet } = conversation;
   const description = tweet.text || `Post by @${tweet.author.username}`;
   const titleText = `${tweet.author.name}: "${truncate(tweet.text, 72)}"`;
   const permalink = `/${encodeURIComponent(tweet.author.username)}/status/${encodeURIComponent(tweet.id)}`;
+  const sortQuery = sort === "Relevance" ? "" : `sort=${sort}&amp;`;
+  const newest = `${permalink}${sort === "Relevance" ? "" : `?sort=${sort}`}#r`;
+  const sortOptions = ([ ["Relevance", "Relevant"], ["Recency", "Recent"], ["Likes", "Liked"] ] as const)
+    .map(([mode, label]) => `<a class="reply-sort-option${sort === mode ? " active" : ""}" href="?sort=${mode}#r">${label}</a>`)
+    .join("");
   const before = conversation.before.map((item) => renderTweet(item, false, preferences)).join("");
   const after = conversation.after.map((item, index, items) => renderTweet(item, false, preferences, index === items.length - 1)).join("");
   const replies = conversation.replies
     .map((thread) => `<div class="reply thread thread-line">${renderThread(thread, preferences)}</div>`)
     .join("");
   const more = conversation.cursor
-    ? `<div class="show-more"><a href="${permalink}?cursor=${encodeURIComponent(conversation.cursor)}#r">Load more</a></div>`
+    ? `<div class="show-more"><a href="${permalink}?${sortQuery}cursor=${encodeURIComponent(conversation.cursor)}#r">Load more</a></div>`
     : "";
   const related = conversation.related.length && !preferences.hideRelated
     ? `<div class="related-tweets"><div class="related-header">Related tweets</div>${conversation.related.map((thread) => `<section class="reply thread-line">${renderThread(thread, preferences)}</section>`).join("")}</div>`
@@ -40,8 +45,8 @@ export function renderStatusPage(conversation: Conversation, preferences: PagePr
         <div class="main-tweet${after ? " thread-line" : ""}" id="m">${renderTweet(tweet, true, preferences)}</div>
         ${after ? `<div class="after-tweet thread-line">${after}</div>` : ""}
       </section>
-      ${currentCursor && !preferences.hideReplies ? `<div class="timeline-item show-more"><a href="${permalink}#r">Load newest</a></div>` : ""}
-      ${(replies || more || currentCursor) && !preferences.hideReplies ? `<div class="reply-sort"><span class="reply-sort-label">Replies</span><strong>Relevant</strong></div><div class="replies" id="r">${replies}${more}</div>` : ""}
+      ${currentCursor && !preferences.hideReplies ? `<div class="timeline-item show-more"><a href="${newest}">Load newest</a></div>` : ""}
+      ${(replies || more || currentCursor) && !preferences.hideReplies ? `<div class="reply-sort"><span class="reply-sort-label">Sort replies:</span>${sortOptions}</div><div class="replies" id="r">${replies}${more}</div>` : ""}
       ${related}
       <div class="top-ref"><div class="icon-container"><a class="icon-down" href="#m" title="Back to top"></a></div></div>
     </main>

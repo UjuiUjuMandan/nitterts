@@ -1,7 +1,7 @@
 import { renderErrorPage, requestPath } from "../../../src/render/profile";
 import { renderStatusPage } from "../../../src/render/status";
 import { preferencesFromRequest } from "../../../src/preferences";
-import { fetchConversation, TweetNotFoundError } from "../../../src/x/conversation";
+import { fetchConversation, parseReplySort, TweetNotFoundError } from "../../../src/x/conversation";
 import { XApiError } from "../../../src/x/client";
 import { withCookieSession } from "../../../src/x/sessions";
 
@@ -9,7 +9,9 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const preferences = preferencesFromRequest(context.request);
   const username = context.params.username;
   const id = context.params.id;
-  const cursor = new URL(context.request.url).searchParams.get("cursor") ?? undefined;
+  const params = new URL(context.request.url).searchParams;
+  const cursor = params.get("cursor") ?? undefined;
+  const sort = parseReplySort(params.get("sort"));
   if (
     typeof username !== "string" ||
     !/^[A-Za-z0-9_]{1,15}$/.test(username) ||
@@ -21,9 +23,9 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
   try {
     const conversation = await withCookieSession(context.env.NITTER_SESSIONS, (session) =>
-      fetchConversation(id, session, cursor),
+      fetchConversation(id, session, cursor, sort),
     );
-    return html(renderStatusPage(conversation, preferences, cursor), 200);
+    return html(renderStatusPage(conversation, preferences, cursor, sort), 200);
   } catch (error) {
     const notFound = error instanceof TweetNotFoundError;
     const status = notFound ? 404 : error instanceof XApiError ? 502 : 500;
