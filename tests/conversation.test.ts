@@ -1,7 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { CookieSession } from "../src/session";
 import { DEFAULT_PREFERENCES } from "../src/preferences";
 import { renderStatusPage } from "../src/render/status";
-import { parseConversation } from "../src/x/conversation";
+import { fetchConversation, parseConversation, TweetNotFoundError } from "../src/x/conversation";
+import { fetchGraphql } from "../src/x/client";
+
+vi.mock("../src/x/client", () => ({ fetchGraphql: vi.fn() }));
 
 function tweet(id: string, username: string, text: string) {
   return {
@@ -53,6 +57,66 @@ function threadEntry(id: string, username: string, text: string, self = false, r
     },
   };
 }
+
+function response(entries: unknown[]) {
+  return { data: { timelineResponse: { instructions: [{ type: "TimelineAddEntries", entries }] } } };
+}
+
+describe("fetchConversation pagination", () => {
+  const session = {} as CookieSession;
+
+  beforeEach(() => vi.resetAllMocks());
+
+  it("loads the focal post separately when a reply page omits it", async () => {
+    vi.mocked(fetchGraphql)
+      .mockResolvedValueOnce(response([
+        threadEntry("4", "bob", "next page reply"),
+        { entryId: "cursor-bottom-0", content: { value: "next+cursor/=" } },
+      ]))
+      .mockResolvedValueOnce(response([
+        tweetEntry("2", "alice", "main"),
+        threadEntry("3", "carol", "first page reply"),
+        { entryId: "cursor-bottom-0", content: { value: "old" } },
+      ]));
+
+    const conversation = await fetchConversation("2", session, "current");
+    expect(conversation.tweet.id).toBe("2");
+    expect(conversation.replies.map((thread) => thread.map((item) => item.id))).toEqual([["4"]]);
+    expect(conversation.cursor).toBe("next+cursor/=");
+    expect(fetchGraphql).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(fetchGraphql).mock.calls[0][1]).toMatchObject({ postId: "2", cursor: "current" });
+    expect(vi.mocked(fetchGraphql).mock.calls[1][1]).not.toHaveProperty("cursor");
+    expect(renderStatusPage(conversation)).toContain("?cursor=next%2Bcursor%2F%3D#r");
+  });
+
+  it("does not refetch a focal post already included in a reply page", async () => {
+    vi.mocked(fetchGraphql).mockResolvedValueOnce(response([tweetEntry("2", "alice", "main")]));
+    expect((await fetchConversation("2", session, "current")).tweet.id).toBe("2");
+    expect(fetchGraphql).toHaveBeenCalledTimes(1);
+  });
+
+  it("accepts an exhausted reply page without showing first-page replies again", async () => {
+    vi.mocked(fetchGraphql)
+      .mockResolvedValueOnce(response([]))
+      .mockResolvedValueOnce(response([tweetEntry("2", "alice", "main"), threadEntry("3", "bob", "old")]));
+    const conversation = await fetchConversation("2", session, "current");
+    expect(conversation.replies).toEqual([]);
+    expect(conversation.cursor).toBeUndefined();
+    expect(renderStatusPage(conversation)).not.toContain("Load more");
+  });
+
+  it("still rejects a missing focal post on the first page", async () => {
+    vi.mocked(fetchGraphql).mockResolvedValueOnce(response([]));
+    await expect(fetchConversation("2", session)).rejects.toBeInstanceOf(TweetNotFoundError);
+    expect(fetchGraphql).toHaveBeenCalledTimes(1);
+  });
+
+  it("still rejects pagination when the focal post no longer exists", async () => {
+    vi.mocked(fetchGraphql).mockResolvedValue(response([]));
+    await expect(fetchConversation("2", session, "current")).rejects.toBeInstanceOf(TweetNotFoundError);
+    expect(fetchGraphql).toHaveBeenCalledTimes(2);
+  });
+});
 
 describe("parseConversation", () => {
   it("separates ancestors, focal post, self-thread posts, and replies", () => {

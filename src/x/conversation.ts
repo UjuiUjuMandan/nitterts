@@ -28,16 +28,25 @@ export async function fetchConversation(
     withV2Timeline: true,
   };
   if (cursor) variables.cursor = cursor;
-  return parseConversation(await fetchGraphql(GRAPH_CONVERSATION, variables, {}, session), tweetId);
+  const value = await fetchGraphql(GRAPH_CONVERSATION, variables, {}, session);
+  try {
+    return parseConversation(value, tweetId);
+  } catch (error) {
+    if (!cursor || !(error instanceof TweetNotFoundError)) throw error;
+    // Reply pages can omit the focal post. Keep their replies and cursor,
+    // fetching only the missing post from the initial conversation.
+    const initial = await fetchConversation(tweetId, session);
+    return parseConversation(value, tweetId, initial.tweet);
+  }
 }
 
-export function parseConversation(value: unknown, tweetId: string): Conversation {
+export function parseConversation(value: unknown, tweetId: string, fallbackTweet?: Tweet): Conversation {
   const instructions = firstArray(value, [
     ["data", "timelineResponse", "instructions"],
     ["data", "timeline_response", "instructions"],
     ["data", "threaded_conversation_with_injections_v2", "instructions"],
   ]);
-  let focal: Tweet | undefined;
+  let focal: Tweet | undefined = fallbackTweet;
   const before: Tweet[] = [];
   const after: Tweet[] = [];
   const replies: Tweet[][] = [];
