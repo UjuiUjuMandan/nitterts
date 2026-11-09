@@ -370,9 +370,9 @@ describe("preferences", () => {
     expect(about).toContain("Connected via");
     expect(about).toContain("Japan App Store");
 
-    const status = renderStatusPage({ tweet: tweet("2"), before: [], after: [], replies: [[tweet("3")]], related: [] }, preferences);
+    const status = renderStatusPage({ tweet: tweet("2"), before: [], after: [], replies: [{ tweets: [tweet("3")], hasMore: false }], related: [] }, preferences);
     expect(status).not.toContain('class="replies"');
-    const statusWithReplies = renderStatusPage({ tweet: tweet("2"), before: [], after: [], replies: [[tweet("3")]], related: [] }, { ...preferences, hideReplies: false });
+    const statusWithReplies = renderStatusPage({ tweet: tweet("2"), before: [], after: [], replies: [{ tweets: [tweet("3")], hasMore: false }], related: [] }, { ...preferences, hideReplies: false });
     expect(statusWithReplies).toContain('class="timeline-item tweet thread-last"');
     expect(statusWithReplies).toContain('class="icon-bird" title="Open in X" href="https://x.com/alice/status/2"');
     expect(statusWithReplies).toContain('/settings?referer=%2Falice%2Fstatus%2F2%23m');

@@ -81,7 +81,7 @@ describe("fetchConversation pagination", () => {
 
     const conversation = await fetchConversation("2", session, "current");
     expect(conversation.tweet.id).toBe("2");
-    expect(conversation.replies.map((thread) => thread.map((item) => item.id))).toEqual([["4"]]);
+    expect(conversation.replies.map((thread) => thread.tweets.map((item) => item.id))).toEqual([["4"]]);
     expect(conversation.cursor).toBe("next+cursor/=");
     expect(fetchGraphql).toHaveBeenCalledTimes(2);
     expect(vi.mocked(fetchGraphql).mock.calls[0][1]).toMatchObject({ postId: "2", cursor: "current" });
@@ -119,6 +119,39 @@ describe("fetchConversation pagination", () => {
 });
 
 describe("parseConversation", () => {
+  it.each(["entryId", "entry_id"])("preserves thread continuation markers using %s", (idKey) => {
+    const thread = threadEntry("3", "bob", "first reply");
+    const last = threadEntry("4", "alice", "Not sure. I went to public schools.");
+    const conversation = parseConversation(response([
+      tweetEntry("2", "alice", "main"),
+      {
+        ...thread,
+        content: {
+          items: [
+            ...thread.content.items,
+            ...last.content.items,
+            { [idKey]: "conversationthread-3-cursor-showmore-0", item: { content: { value: "thread-cursor" } } },
+          ],
+        },
+      },
+      threadEntry("5", "carol", "complete thread"),
+    ]), "2");
+
+    expect(conversation.replies[0].hasMore).toBe(true);
+    expect(conversation.replies[0].tweets.map((item) => item.id)).toEqual(["3", "4"]);
+    expect(conversation.replies[1].hasMore).toBe(false);
+    // Thread continuation must not become the whole conversation's next page.
+    expect(conversation.cursor).toBeUndefined();
+    const html = renderStatusPage(conversation);
+    expect(html).toContain('<div class="timeline-item more-replies"><a class="more-replies-text" href="/alice/status/4#m">more replies</a></div>');
+    expect(html.match(/class="more-replies-text"/g)).toHaveLength(1);
+    const threads = html.split('<div class="reply thread thread-line">');
+    expect(threads[1]).not.toContain("thread-last");
+    expect(threads[2]).toContain("thread-last");
+    expect(renderStatusPage(conversation, { ...DEFAULT_PREFERENCES, hideReplies: true }))
+      .not.toContain("more-replies-text");
+  });
+
   it("separates ancestors, focal post, self-thread posts, and replies", () => {
     const conversation = parseConversation(
       {
@@ -150,8 +183,8 @@ describe("parseConversation", () => {
     expect(conversation.tweet).toMatchObject({ id: "2", text: "<main>" });
     expect(conversation.before.map((item) => item.id)).toEqual(["1"]);
     expect(conversation.after.map((item) => item.id)).toEqual(["3"]);
-    expect(conversation.replies.map((thread) => thread.map((item) => item.id))).toEqual([["4"]]);
-    expect(conversation.related.map((thread) => thread.map((item) => item.id))).toEqual([["5"], ["6"]]);
+    expect(conversation.replies.map((thread) => thread.tweets.map((item) => item.id))).toEqual([["4"]]);
+    expect(conversation.related.map((thread) => thread.tweets.map((item) => item.id))).toEqual([["5"], ["6"]]);
     expect(conversation.cursor).toBe("next");
 
     const paginatedHtml = renderStatusPage(conversation, DEFAULT_PREFERENCES, "current");
@@ -164,6 +197,7 @@ describe("parseConversation", () => {
 
     const html = renderStatusPage(conversation);
     expect(html).not.toContain("Load newest");
+    expect(html).not.toContain("more-replies-text");
     expect(html).toContain('class="conversation"');
     expect(html).toContain('class="reply thread thread-line"');
     expect(html).toContain('/alice/status/2?cursor=next#r');

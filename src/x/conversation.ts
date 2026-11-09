@@ -4,12 +4,17 @@ import { parseTweet, type Tweet } from "./timeline";
 
 const GRAPH_CONVERSATION = "OZMbEnEa96AN8Pq6HyTWdw/ConversationTimeline";
 
+export type ConversationThread = {
+  tweets: Tweet[];
+  hasMore: boolean;
+};
+
 export type Conversation = {
   tweet: Tweet;
   before: Tweet[];
   after: Tweet[];
-  replies: Tweet[][];
-  related: Tweet[][];
+  replies: ConversationThread[];
+  related: ConversationThread[];
   cursor?: string;
 };
 
@@ -49,8 +54,8 @@ export function parseConversation(value: unknown, tweetId: string, fallbackTweet
   let focal: Tweet | undefined = fallbackTweet;
   const before: Tweet[] = [];
   const after: Tweet[] = [];
-  const replies: Tweet[][] = [];
-  const related: Tweet[][] = [];
+  const replies: ConversationThread[] = [];
+  const related: ConversationThread[] = [];
   let cursor: string | undefined;
 
   for (const instructionValue of instructions) {
@@ -70,15 +75,15 @@ export function parseConversation(value: unknown, tweetId: string, fallbackTweet
         const thread = parseThread(entry);
         if (!thread.tweets.length) continue;
         if (thread.related) {
-          related.push(thread.tweets);
+          related.push(thread);
         } else if (thread.self) {
           after.push(...thread.tweets);
         } else {
-          replies.push(thread.tweets);
+          replies.push(thread);
         }
       } else if (entryId.startsWith("tweetdetailrelatedtweets")) {
         const thread = parseThread(entry);
-        if (thread.tweets.length) related.push(thread.tweets);
+        if (thread.tweets.length) related.push(thread);
       } else if (entryId.startsWith("cursor-bottom")) {
         cursor = firstString(entry, [
           ["content", "value"],
@@ -104,15 +109,22 @@ function parseThread(entry: Record<string, unknown>): {
   tweets: Tweet[];
   self: boolean;
   related: boolean;
+  hasMore: boolean;
 } {
   const tweets: Tweet[] = [];
   let self = false;
   let related = false;
+  let hasMore = false;
   const items = optionalArray(recordAt(entry, ["content", "items"])) ?? [];
 
   for (const itemValue of items) {
     const item = optionalRecord(itemValue);
     if (!item) continue;
+    const entryId = stringValue(item.entryId) || stringValue(item.entry_id);
+    if (entryId.includes("cursor-showmore")) {
+      hasMore = true;
+      continue;
+    }
     if (!related) {
       related = firstString(item, [
         ["item", "client_event_info", "details", "conversation_details", "conversation_section"],
@@ -126,7 +138,7 @@ function parseThread(entry: Record<string, unknown>): {
       ["item", "itemContent", "tweetDisplayType"],
     ]) === "SelfThread";
   }
-  return { tweets, self, related };
+  return { tweets, self, related, hasMore };
 }
 
 function parseEntryTweet(entry: Record<string, unknown>): Tweet | undefined {

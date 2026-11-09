@@ -1,4 +1,4 @@
-import type { Conversation } from "../x/conversation";
+import type { Conversation, ConversationThread } from "../x/conversation";
 import { bodyClass, DEFAULT_PREFERENCES, type PagePreferences } from "../preferences";
 import { escapeAttribute, escapeHtml, headScripts, renderNavbar, renderTweet, themeLink } from "./profile";
 
@@ -10,13 +10,13 @@ export function renderStatusPage(conversation: Conversation, preferences: PagePr
   const before = conversation.before.map((item) => renderTweet(item, false, preferences)).join("");
   const after = conversation.after.map((item, index, items) => renderTweet(item, false, preferences, index === items.length - 1)).join("");
   const replies = conversation.replies
-    .map((thread) => `<div class="reply thread thread-line">${thread.map((item, index) => renderTweet(item, false, preferences, index === thread.length - 1)).join("")}</div>`)
+    .map((thread) => `<div class="reply thread thread-line">${renderThread(thread, preferences)}</div>`)
     .join("");
   const more = conversation.cursor
     ? `<div class="show-more"><a href="${permalink}?cursor=${encodeURIComponent(conversation.cursor)}#r">Load more</a></div>`
     : "";
   const related = conversation.related.length && !preferences.hideRelated
-    ? `<div class="related-tweets"><div class="related-header">Related tweets</div>${conversation.related.map((thread) => `<section class="reply thread-line">${thread.map((item, index) => renderTweet(item, false, preferences, index === thread.length - 1)).join("")}</section>`).join("")}</div>`
+    ? `<div class="related-tweets"><div class="related-header">Related tweets</div>${conversation.related.map((thread) => `<section class="reply thread-line">${renderThread(thread, preferences)}</section>`).join("")}</div>`
     : "";
 
   return `<!doctype html>
@@ -48,6 +48,15 @@ export function renderStatusPage(conversation: Conversation, preferences: PagePr
   </div>
 </body>
 </html>`;
+}
+
+function renderThread(thread: ConversationThread, preferences: PagePreferences): string {
+  const tweets = thread.tweets.map((item, index) => renderTweet(item, false, preferences, index === thread.tweets.length - 1 && !thread.hasMore)).join("");
+  const last = thread.tweets.at(-1);
+  const more = thread.hasMore && last
+    ? `<div class="timeline-item more-replies"><a class="more-replies-text" href="/${encodeURIComponent(last.author.username)}/status/${encodeURIComponent(last.id)}#m">more replies</a></div>`
+    : "";
+  return tweets + more;
 }
 
 function truncate(value: string, limit: number): string {
