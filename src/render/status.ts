@@ -2,7 +2,7 @@ import type { Conversation } from "../x/conversation";
 import { bodyClass, DEFAULT_PREFERENCES, type PagePreferences } from "../preferences";
 import { escapeAttribute, escapeHtml, headScripts, renderNavbar, renderTweet, themeLink } from "./profile";
 
-export function renderStatusPage(conversation: Conversation, preferences: PagePreferences = { ...DEFAULT_PREFERENCES }): string {
+export function renderStatusPage(conversation: Conversation, preferences: PagePreferences = { ...DEFAULT_PREFERENCES }, currentCursor?: string): string {
   const { tweet } = conversation;
   const description = tweet.text || `Post by @${tweet.author.username}`;
   const titleText = `${tweet.author.name}: "${truncate(tweet.text, 72)}"`;
@@ -40,7 +40,8 @@ export function renderStatusPage(conversation: Conversation, preferences: PagePr
         <div class="main-tweet${after ? " thread-line" : ""}" id="m">${renderTweet(tweet, true, preferences)}</div>
         ${after ? `<div class="after-tweet thread-line">${after}</div>` : ""}
       </section>
-      ${(replies || more) && !preferences.hideReplies ? `<div class="reply-sort"><span class="reply-sort-label">Replies</span><strong>Relevant</strong></div><div class="replies" id="r">${replies}${more}</div>` : ""}
+      ${currentCursor && !preferences.hideReplies ? `<div class="timeline-item show-more"><a href="${permalink}#r">Load newest</a></div>` : ""}
+      ${(replies || more || currentCursor) && !preferences.hideReplies ? `<div class="reply-sort"><span class="reply-sort-label">Replies</span><strong>Relevant</strong></div><div class="replies" id="r">${replies}${more}</div>` : ""}
       ${related}
       <div class="top-ref"><div class="icon-container"><a class="icon-down" href="#m" title="Back to top"></a></div></div>
     </main>

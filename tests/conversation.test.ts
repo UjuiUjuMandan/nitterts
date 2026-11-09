@@ -154,7 +154,16 @@ describe("parseConversation", () => {
     expect(conversation.related.map((thread) => thread.map((item) => item.id))).toEqual([["5"], ["6"]]);
     expect(conversation.cursor).toBe("next");
 
+    const paginatedHtml = renderStatusPage(conversation, DEFAULT_PREFERENCES, "current");
+    expect(paginatedHtml).toContain('<div class="timeline-item show-more"><a href="/alice/status/2#r">Load newest</a></div>');
+    expect(paginatedHtml.indexOf("Load newest")).toBeLessThan(paginatedHtml.indexOf('class="reply-sort"'));
+    expect(renderStatusPage({ ...conversation, replies: [], cursor: undefined }, DEFAULT_PREFERENCES, "last"))
+      .toContain('href="/alice/status/2#r">Load newest</a>');
+    expect(renderStatusPage(conversation, { ...DEFAULT_PREFERENCES, hideReplies: true }, "current"))
+      .not.toContain("Load newest");
+
     const html = renderStatusPage(conversation);
+    expect(html).not.toContain("Load newest");
     expect(html).toContain('class="conversation"');
     expect(html).toContain('class="reply thread thread-line"');
     expect(html).toContain('/alice/status/2?cursor=next#r');

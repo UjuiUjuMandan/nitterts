@@ -23,7 +23,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     const conversation = await withCookieSession(context.env.NITTER_SESSIONS, (session) =>
       fetchConversation(id, session, cursor),
     );
-    return html(renderStatusPage(conversation, preferences), 200);
+    return html(renderStatusPage(conversation, preferences, cursor), 200);
   } catch (error) {
     const notFound = error instanceof TweetNotFoundError;
     const status = notFound ? 404 : error instanceof XApiError ? 502 : 500;
