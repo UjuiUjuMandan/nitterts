@@ -232,7 +232,7 @@ export function renderTweet(source: Tweet, main = false, preferences: PagePrefer
       : "";
   const media = renderMedia(tweet, preferences);
   const quote = tweet.quote ? renderQuote(tweet.quote, preferences)
-    : tweet.quoteUnavailable ? '<div class="quote unavailable"><span class="unavailable-quote">This tweet is unavailable</span></div>' : "";
+    : tweet.quoteUnavailable ? '<div class="quote unavailable"><a class="unavailable-quote" href="">This tweet is unavailable</a></div>' : "";
 
   const permalink = `/${encodeURIComponent(tweet.author.username)}/status/${encodeURIComponent(tweet.id)}`;
   return `<div class="timeline-item tweet${main ? " main-tweet-item" : ""}${threadLast ? " thread-last" : ""}">

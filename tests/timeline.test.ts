@@ -37,6 +37,7 @@ describe("parseTimeline", () => {
       expect(parsed.quoteUnavailable).toBe(true);
       const html = renderTweet(parsed, true, DEFAULT_PREFERENCES);
       expect(html).toContain('class="quote unavailable"');
+      expect(html).toContain('<a class="unavailable-quote" href="">This tweet is unavailable</a>');
       expect(html).toContain("This tweet is unavailable");
       expect(html).toContain("哈人");
       expect(html).not.toContain('class="quote-link"');
