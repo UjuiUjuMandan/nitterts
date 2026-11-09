@@ -45,6 +45,7 @@ Twitter account.
 
 These are for NitterTS, not the original Nitter.
 
+Liberapay: https://liberapay.com/NitterTS/ \
 BTC: bc1q2shganduc686k7r96dfw7acyjzkmuyxaguntfy \
 LTC: ltc1qfnv5t3xwrjhcseqwuafamyz7u6wp77nhe039gr \
 ETH: 0x397479Af7d403C074Ef53677767534Af20Ef156E \
