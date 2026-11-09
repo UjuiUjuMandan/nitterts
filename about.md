@@ -46,6 +46,8 @@ Twitter account.
 These are for NitterTS, not the original Nitter.
 
 BTC: bc1q2shganduc686k7r96dfw7acyjzkmuyxaguntfy \
+LTC: ltc1qfnv5t3xwrjhcseqwuafamyz7u6wp77nhe039gr \
 ETH: 0x397479Af7d403C074Ef53677767534Af20Ef156E \
 XMR: 85xXZpeEPPvHMsWmjL1U3JTqoyaFgvVdrKcD8FxWFYzC8d2uwGY94KSbfWeWfwS8FD9hfzYvDVbUs4Awg2s9toEt2Pj7xbT \
-SOL: 87TtMwgbycemXS4ZfiDCVi4xREgjVvMK2sge43yqkNgD
+SOL: 87TtMwgbycemXS4ZfiDCVi4xREgjVvMK2sge43yqkNgD \
+ZEC: u1y56ca6fgq8mvml82nvsw9frlkj4uzcxewqsarrqg2eq834p8h0axw7fgztqt0xtad7642ja8fwdwdqe7zw44t449gvr22w2uc783nh2q34m30cwxnapecf75yq7xhecxhx44xv5lyele5atktcgx03p2zqgfd7gsfukmc07d4yka04es
