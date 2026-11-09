@@ -119,6 +119,30 @@ describe("fetchConversation pagination", () => {
 });
 
 describe("parseConversation", () => {
+  it.each(["entryId", "entry_id"])("filters promoted entries and thread items using %s", (idKey) => {
+    const promotedItem = {
+      [idKey]: "conversationthread-4-promoted-tweet-4-ad",
+      item: { itemContent: { tweet_results: { result: tweet("4", "advertiser", "advertisement") } } },
+    };
+    const reply = threadEntry("3", "bob", "organic reply about ads");
+    const conversation = parseConversation(response([
+      tweetEntry("2", "alice", "main"),
+      { ...tweetEntry("5", "advertiser", "top-level ad"), entryId: undefined, [idKey]: "tweet-5-promoted" },
+      { ...threadEntry("6", "advertiser", "promoted module"), entryId: undefined, [idKey]: "conversationthread-6-promoted" },
+      { ...reply, content: { items: [promotedItem, ...reply.content.items, promotedItem] } },
+      { entryId: "conversationthread-ads", content: { items: [promotedItem] } },
+      { entryId: "cursor-bottom-0", content: { value: "next" } },
+    ]), "2");
+
+    expect(conversation.before).toEqual([]);
+    expect(conversation.replies.map((thread) => thread.tweets.map((item) => item.id))).toEqual([["3"]]);
+    expect(conversation.cursor).toBe("next");
+    const html = renderStatusPage(conversation);
+    expect(html).toContain("organic reply about ads");
+    expect(html).not.toContain("advertiser");
+    expect(html).not.toContain("advertisement");
+  });
+
   it.each(["entryId", "entry_id"])("preserves thread continuation markers using %s", (idKey) => {
     const thread = threadEntry("3", "bob", "first reply");
     const last = threadEntry("4", "alice", "Not sure. I went to public schools.");

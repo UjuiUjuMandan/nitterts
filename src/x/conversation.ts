@@ -65,6 +65,7 @@ export function parseConversation(value: unknown, tweetId: string, fallbackTweet
       const entry = optionalRecord(entryValue);
       if (!entry) continue;
       const entryId = stringValue(entry.entryId) || stringValue(entry.entry_id);
+      if (entryId.includes("promoted")) continue;
 
       if (entryId.startsWith("tweet-")) {
         const tweet = parseEntryTweet(entry);
@@ -121,6 +122,7 @@ function parseThread(entry: Record<string, unknown>): {
     const item = optionalRecord(itemValue);
     if (!item) continue;
     const entryId = stringValue(item.entryId) || stringValue(item.entry_id);
+    if (entryId.includes("promoted")) continue;
     if (entryId.includes("cursor-showmore")) {
       hasMore = true;
       continue;
