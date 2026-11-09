@@ -245,7 +245,7 @@ export function renderTweet(source: Tweet, main = false, preferences: PagePrefer
           <span class="tweet-date"><a href="${permalink}" title="${escapeAttribute(formatFullDate(tweet.createdAt))}">${escapeHtml(formatDate(tweet.createdAt))}</a></span>
         </div>
       </div>
-      ${tweet.replyTo.length ? `<div class="replying-to">Replying to ${tweet.replyTo.map((name) => `@${escapeHtml(name)}`).join(" ")}</div>` : ""}
+      ${tweet.replyTo.length ? `<div class="replying-to">Replying to ${tweet.replyTo.map((name) => `<a href="/${encodeURIComponent(name)}">@${escapeHtml(name)}</a>`).join(" ")}</div>` : ""}
       <div class="tweet-content media-body${preferences.bidiSupport ? " tweet-bidi" : ""}" dir="auto">${linkify(tweet.text, tweet.links, preferences)}</div>
       ${media}
       ${quote}

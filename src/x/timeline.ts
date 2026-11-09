@@ -516,6 +516,7 @@ export function parseTweet(value: Record<string, unknown>, depth = 0): Tweet | u
     linkedShortUrls.add(rawUnits.slice(range.start, range.end).join(""));
   }
   const removedRanges = normalizeRanges(rawText, [
+    ...hiddenTextRanges(rawText, noteText ? undefined : details ?? legacy),
     ...mediaRanges,
     ...unlinkedMediaUrlRanges(rawText, mediaEntities.length, linkedShortUrls),
   ]);
@@ -608,7 +609,34 @@ function collectReplyUsers(
     recordAt(value, ["reply_to_user_results", "result", "core", "screen_name"]),
   );
   const legacyName = stringValue(legacy?.in_reply_to_screen_name);
-  return [modern || legacyName].filter(Boolean);
+  const names = [modern || legacyName].filter(Boolean);
+  const details = optionalRecord(value.details);
+  const start = numberValue((optionalArray((details ?? legacy)?.display_text_range) ?? [])[0]);
+  const mentions = [
+    ...(optionalArray(value.mention_entities) ?? []),
+    ...(optionalArray(details?.mention_entities) ?? []),
+    ...(optionalArray(recordAt(legacy, ["entities", "user_mentions"])) ?? []),
+  ];
+  for (const mention of mentions) {
+    const entity = optionalRecord(mention);
+    const indices = optionalArray(entity?.indices);
+    const name = stringValue(entity?.screen_name);
+    if (name && indices && numberValue(indices[1]) <= start && !names.includes(name)) names.push(name);
+  }
+  return names;
+}
+
+function hiddenTextRanges(text: string, source: Record<string, unknown> | undefined): { start: number; end: number }[] {
+  const range = optionalArray(source?.display_text_range);
+  const length = [...text].length;
+  if (!range || range.length !== 2) return [];
+  const [start, end] = range;
+  if (typeof start !== "number" || typeof end !== "number" ||
+      !Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < start || end > length) return [];
+  return [
+    ...(start > 0 ? [{ start: 0, end: start }] : []),
+    ...(end < length ? [{ start: end, end: length }] : []),
+  ];
 }
 
 function parseMedia(

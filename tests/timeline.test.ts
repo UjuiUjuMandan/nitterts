@@ -23,6 +23,61 @@ const wrapNote = (result: unknown) => ({
 });
 
 describe("parseTimeline", () => {
+  it.each(["modern", "legacy"])("moves hidden %s reply mentions into clickable reply context", (format) => {
+    const prefix = "@alice @bob ";
+    const body = "Hi 😀 @carol https://t.co/x";
+    const fullText = prefix + body;
+    const units = [...fullText];
+    const mentionStart = units.indexOf("@", prefix.length);
+    const urlStart = units.indexOf("h", prefix.length);
+    const mentions = [
+      { screen_name: "alice", indices: [0, 6] },
+      { screen_name: "bob", indices: [7, 11] },
+      { screen_name: "carol", indices: [mentionStart, mentionStart + 6] },
+    ];
+    const urls = [{ url: "https://t.co/x", expanded_url: "https://example.com", display_url: "example.com", indices: [urlStart, units.length] }];
+    const textFields = { full_text: fullText, display_text_range: [prefix.length, units.length] };
+    const result = {
+      rest_id: "300",
+      ...(format === "modern" ? {
+        details: textFields,
+        mention_entities: mentions,
+        url_entities: urls,
+        reply_to_user_results: { result: { core: { screen_name: "alice" } } },
+      } : {
+        legacy: { ...textFields, in_reply_to_screen_name: "alice", entities: { user_mentions: mentions, urls } },
+      }),
+    };
+    const parsed = parseTimeline(wrapNote(result)).tweets[0];
+    expect(parsed.text).toBe(body);
+    expect(parsed.replyTo).toEqual(["alice", "bob"]);
+    expect(parsed.links).toEqual([
+      { kind: "mention", start: 5, end: 11, url: "/carol", display: "@carol" },
+      { kind: "url", start: 12, end: [...body].length, url: "https://example.com", display: "example.com" },
+    ]);
+    const html = renderTweet(parsed, true, DEFAULT_PREFERENCES);
+    expect(html).toContain('<div class="replying-to">Replying to <a href="/alice">@alice</a> <a href="/bob">@bob</a></div>');
+    expect(html).toContain('dir="auto">Hi 😀 <a href="/carol"');
+    expect(html).not.toContain('dir="auto"><a href="/alice"');
+  });
+
+  it("preserves visible mentions when display range is absent and ignores short-post ranges for notes", () => {
+    const base = {
+      rest_id: "301",
+      details: { full_text: "@alice hello" },
+      mention_entities: [{ screen_name: "alice", indices: [0, 6] }],
+      reply_to_user_results: { result: { core: { screen_name: "alice" } } },
+    };
+    expect(parseTimeline(wrapNote(base)).tweets[0].text).toBe("@alice hello");
+    const note = parseTimeline(wrapNote({
+      ...base,
+      details: { ...base.details, display_text_range: [7, 12] },
+      note_tweet: { note_tweet_results: { result: { text: "Full expanded body", entity_set: {} } } },
+    })).tweets[0];
+    expect(note.text).toBe("Full expanded body");
+    expect(note.replyTo).toEqual(["alice"]);
+  });
+
   it("uses only expanded note entities when reply prefixes change offsets", () => {
     const text = "Are we Seriously thinking @TheDemocrats are Self Aware ? 🫃";
     const result = {
