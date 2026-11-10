@@ -20,6 +20,10 @@ export type DonatedSession = CookieSession & {
 export const MAX_SESSIONS_PER_STEWARD = 10;
 
 const OWNER_PREFIX = "owner/";
+// Operator sessions, seeded via scripts/seed-sessions.ts. Same wire field
+// names as donations (auth_token/ct0), but no steward/visibility metadata:
+// they serve every visitor unconditionally.
+export const OPERATOR_KEY = "operator/sessions";
 const STEWARD_TOKEN_PATTERN = /^[0-9a-f]{64}$/;
 const ID_PATTERN = /^\d{1,19}$/;
 const USERNAME_PATTERN = /^[A-Za-z0-9_]{1,15}$/;
@@ -31,6 +35,51 @@ export function isStewardToken(value: unknown): value is string {
 
 export function ownerKey(token: string): string {
   return `${OWNER_PREFIX}${token}`;
+}
+
+export async function getOperatorSessions(kv: KVNamespace): Promise<CookieSession[]> {
+  return parseOperatorRecord(await kv.get<unknown>(OPERATOR_KEY, { type: "json" }));
+}
+
+export async function putOperatorSessions(kv: KVNamespace, sessions: CookieSession[]): Promise<void> {
+  if (sessions.length === 0) {
+    await kv.delete(OPERATOR_KEY);
+    return;
+  }
+  await kv.put(OPERATOR_KEY, operatorWire(sessions));
+}
+
+// Single source of truth for the operator record wire format; the seed
+// script writes the same bytes.
+export function operatorWire(sessions: CookieSession[]): string {
+  return JSON.stringify(sessions.map((session) => ({
+    kind: "cookie",
+    username: session.username,
+    id: session.id,
+    auth_token: session.authToken,
+    ct0: session.ct0,
+  })));
+}
+
+export function parseOperatorRecord(value: unknown): CookieSession[] {
+  if (!Array.isArray(value)) return [];
+  return value.map(parseOperatorEntry).filter((session): session is CookieSession => session !== undefined);
+}
+
+function parseOperatorEntry(value: unknown): CookieSession | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const record = value as Record<string, unknown>;
+  if (record.kind !== "cookie") return undefined;
+  const { username, id, auth_token, ct0 } = record;
+  if (
+    typeof username !== "string" || !USERNAME_PATTERN.test(username) ||
+    typeof id !== "string" || !ID_PATTERN.test(id) ||
+    typeof auth_token !== "string" || !TOKEN_PATTERN.test(auth_token) ||
+    typeof ct0 !== "string" || !TOKEN_PATTERN.test(ct0)
+  ) {
+    return undefined;
+  }
+  return { kind: "cookie", username, id, authToken: auth_token, ct0 };
 }
 
 export async function getStewardSessions(
@@ -50,7 +99,7 @@ export async function putStewardSessions(
     await kv.delete(ownerKey(token));
     return;
   }
-  // Wire format keeps the NITTER_SESSIONS field names (auth_token/ct0).
+  // Wire format keeps the legacy field names (auth_token/ct0).
   await kv.put(
     ownerKey(token),
     JSON.stringify(sessions.map((session) => ({

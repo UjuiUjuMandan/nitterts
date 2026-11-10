@@ -23,7 +23,7 @@ import { serveSearchPage } from "../src/serve/search";
 import { fetchProfile } from "../src/x/client";
 import { fetchListSearch, fetchSearchTimeline, fetchUserSearch } from "../src/x/timeline";
 
-const env = { NITTER_SESSIONS: "unused" } as Env;
+const env = {} as Env;
 const profile = {
   id: "42",
   username: "alice",

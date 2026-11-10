@@ -3,8 +3,8 @@ import type { CookieSession } from "../session";
 import {
   assemblePool,
   loadDonatedSessions,
+  loadOperatorSessions,
   newStewardToken,
-  parseEnvSessions,
   sessionCreatedAt,
   sessionLabel,
   stewardCookie,
@@ -65,7 +65,7 @@ export async function serveSessionSettingsUpdate(request: Request, env: Env): Pr
 async function buildView(request: Request, env: Env): Promise<SessionSettingsView> {
   const steward = stewardTokenFromRequest(request);
   const donated = await loadDonatedSessions(env);
-  const pool = assemblePool(parseEnvSessions(env), donated, steward);
+  const pool = assemblePool(await loadOperatorSessions(env), donated, steward);
   const debug = await sessionDebug(pool);
   const donationById = new Map(donated.map((session) => [session.id, session] as const));
   const entries: PoolSessionView[] = pool.map((session) => {

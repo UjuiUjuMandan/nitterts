@@ -32,7 +32,7 @@ describe("status reply sorting", () => {
     const response = await onRequestGet({
       request: new Request(`https://nitter.test/alice/status/2?cursor=current${query}`),
       params: { username: "alice", id: "2" },
-      env: { NITTER_SESSIONS: "unused" },
+      env: {},
     } as Parameters<typeof onRequestGet>[0]);
     expect(response.status).toBe(200);
     const imagePolicy = response.headers.get("content-security-policy")!.split(";").find((directive) => directive.trim().startsWith("img-src"))!;

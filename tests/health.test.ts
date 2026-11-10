@@ -2,15 +2,48 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { onRequestGet as serveHealth } from "../functions/.health";
 import { onRequestGet as serveSessions } from "../functions/.sessions";
 import type { CookieSession } from "../src/session";
+import { putOperatorSessions } from "../src/session-store";
 import { installMetricsSink, resetMetricsSink } from "../src/x/metrics-sink";
 import { beginSessionRequest, endSessionRequest, recordApiStatus, recordLimitedSession, resetRateLimitTracking, sessionPoolDebug, sessionPoolHealth } from "../src/x/rate-limit";
+
+class FakeKV {
+  private map = new Map<string, string>();
+
+  async get(key: string, options?: { type?: string }): Promise<unknown> {
+    const value = this.map.get(key);
+    if (value === undefined) return null;
+    return options?.type === "json" ? JSON.parse(value) : value;
+  }
+
+  async put(key: string, value: string): Promise<void> {
+    this.map.set(key, value);
+  }
+
+  async delete(key: string): Promise<void> {
+    this.map.delete(key);
+  }
+
+  async list(options?: { prefix?: string }): Promise<{ keys: Array<{ name: string }>; list_complete: true }> {
+    const prefix = options?.prefix ?? "";
+    return {
+      keys: [...this.map.keys()].filter((key) => key.startsWith(prefix)).sort().map((name) => ({ name })),
+      list_complete: true,
+    };
+  }
+}
+
+async function envWithOperatorSessions(sessions: CookieSession[]): Promise<{ SESSION_STORE: KVNamespace }> {
+  const kv = new FakeKV() as unknown as KVNamespace;
+  await putOperatorSessions(kv, sessions);
+  return { SESSION_STORE: kv };
+}
 
 function snowflakeFor(isoDate: string): string {
   return ((BigInt(new Date(isoDate).getTime()) - 1288834974657n) << 22n).toString();
 }
 
 function session(id: string): CookieSession {
-  return { kind: "cookie", username: `user_${id.slice(0, 4)}`, id, authToken: "a", ct0: "c" };
+  return { kind: "cookie", username: `user_${id.slice(0, 4)}`, id, authToken: "a".repeat(32), ct0: "c".repeat(32) };
 }
 
 const oldSession = session(snowflakeFor("2019-06-01T00:00:00Z"));
@@ -85,11 +118,9 @@ describe("session pool health", () => {
   it("serves /.health JSON from the request context env", async () => {
     const response = await serveHealth({
       request: new Request("https://nitter.test/.health"),
-      env: {
-        NITTER_SESSIONS: [
-          JSON.stringify({ kind: "cookie", username: "alice", id: snowflakeFor("2020-01-01T00:00:00Z"), auth_token: "a", ct0: "c" }),
-        ].join("\n"),
-      },
+      env: await envWithOperatorSessions([
+        { kind: "cookie", username: "alice", id: snowflakeFor("2020-01-01T00:00:00Z"), authToken: "a".repeat(32), ct0: "c".repeat(32) },
+      ]),
     } as never);
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/json");
@@ -102,13 +133,13 @@ describe("session pool health", () => {
   it("gates /.sessions behind NITTER_DEBUG", async () => {
     const denied = await serveSessions({
       request: new Request("https://nitter.test/.sessions"),
-      env: { NITTER_SESSIONS: "unused" },
+      env: {},
     } as never);
     expect(denied.status).toBe(404);
 
     const allowed = await serveSessions({
       request: new Request("https://nitter.test/.sessions"),
-      env: { NITTER_SESSIONS: "unused", NITTER_DEBUG: "true" },
+      env: { NITTER_DEBUG: "true" },
     } as never);
     expect(allowed.status).toBe(200);
     expect(JSON.parse(await allowed.text())).toEqual({});
@@ -140,11 +171,9 @@ describe("session pool health", () => {
 
     const response = await serveHealth({
       request: new Request("https://nitter.test/.health"),
-      env: {
-        NITTER_SESSIONS: [
-          JSON.stringify({ kind: "cookie", username: "bob", id: sessionId, auth_token: "a", ct0: "c" }),
-        ].join("\n"),
-      },
+      env: await envWithOperatorSessions([
+        { kind: "cookie", username: "bob", id: sessionId, authToken: "a".repeat(32), ct0: "c".repeat(32) },
+      ]),
     } as never);
     expect(response.status).toBe(200);
     expect(JSON.parse(await response.text())).toEqual(report);

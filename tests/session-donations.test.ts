@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { serveSessionSettingsPage, serveSessionSettingsUpdate } from "../src/serve/session-settings";
-import { getStewardSessions, putStewardSessions, type DonatedSession } from "../src/session-store";
+import type { CookieSession } from "../src/session";
+import { getStewardSessions, putOperatorSessions, putStewardSessions, type DonatedSession } from "../src/session-store";
 import { newStewardToken, sessionLabel } from "../src/session-pool";
 import { resetMetricsSink } from "../src/x/metrics-sink";
 import { resetRateLimitTracking } from "../src/x/rate-limit";
@@ -34,8 +35,8 @@ class FakeKV {
 const ORIGIN = "https://nitter.test";
 const BURNER_ID = "1234567890123456789";
 
-function operatorEnvLine(id: string, username: string): string {
-  return JSON.stringify({ kind: "cookie", username, id, auth_token: "f".repeat(32), ct0: "9".repeat(32) });
+function operatorSession(id: string, username: string): CookieSession {
+  return { kind: "cookie", username, id, authToken: "f".repeat(32), ct0: "9".repeat(32) };
 }
 
 function donationRecord(id: string, ownerToken: string, visibility: "public" | "private"): DonatedSession {
@@ -109,7 +110,8 @@ describe("GET /settings/sessions", () => {
   it("lists pool sessions anonymously without leaking ids or usernames", async () => {
     const kv = new FakeKV() as unknown as KVNamespace;
     await putStewardSessions(kv, newStewardToken(), [donationRecord(BURNER_ID, newStewardToken(), "public")]);
-    const env = { NITTER_SESSIONS: operatorEnvLine("555", "operator_acct"), SESSION_STORE: kv };
+    await putOperatorSessions(kv, [operatorSession("555", "operator_acct")]);
+    const env = { SESSION_STORE: kv };
 
     const response = await serveSessionSettingsPage(get(`${ORIGIN}/settings/sessions`), env);
     expect(response.status).toBe(200);
@@ -128,7 +130,8 @@ describe("GET /settings/sessions", () => {
     const other = newStewardToken();
     await putStewardSessions(kv, steward, [donationRecord("111", steward, "private")]);
     await putStewardSessions(kv, other, [donationRecord("222", other, "private")]);
-    const env = { NITTER_SESSIONS: operatorEnvLine("555", "op"), SESSION_STORE: kv };
+    await putOperatorSessions(kv, [operatorSession("555", "op")]);
+    const env = { SESSION_STORE: kv };
 
     const html = await (await serveSessionSettingsPage(get(`${ORIGIN}/settings/sessions`, steward), env)).text();
     const label = sessionLabel(env, { id: "111" });
@@ -138,13 +141,13 @@ describe("GET /settings/sessions", () => {
   });
 
   it("notes when donations are disabled", async () => {
-    const response = await serveSessionSettingsPage(get(`${ORIGIN}/settings/sessions`), { NITTER_SESSIONS: operatorEnvLine("555", "op") });
+    const response = await serveSessionSettingsPage(get(`${ORIGIN}/settings/sessions`), {});
     const html = await response.text();
     expect(html).toContain("Session donations are not enabled");
   });
 
   it("renders the added notice only for well-formed labels", async () => {
-    const env = { NITTER_SESSIONS: operatorEnvLine("555", "op") };
+    const env = {};
     const good = await (await serveSessionSettingsPage(get(`${ORIGIN}/settings/sessions?added=anon-0123456789`), env)).text();
     expect(good).toContain("verified and stored");
     const bad = await (await serveSessionSettingsPage(get(`${ORIGIN}/settings/sessions?added=%3Cscript%3E`), env)).text();
@@ -169,14 +172,14 @@ describe("POST /settings/sessions", () => {
       headers: { origin: "https://evil.example", "content-type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ action: "donate", username: "a", auth_token: "b", ct0: "c" }),
     });
-    const response = await serveSessionSettingsUpdate(request, { NITTER_SESSIONS: "unused" });
+    const response = await serveSessionSettingsUpdate(request, {});
     expect(response.status).toBe(403);
   });
 
   it("rejects donations when no session store is bound", async () => {
     const response = await serveSessionSettingsUpdate(
       post({ action: "donate", username: "burner_acct", auth_token: "a".repeat(32), ct0: "c".repeat(32) }),
-      { NITTER_SESSIONS: "unused" },
+      {},
     );
     expect(response.status).toBe(400);
     expect(await response.text()).toContain("not enabled");
@@ -186,7 +189,7 @@ describe("POST /settings/sessions", () => {
     const fetchSpy = mockXResponse(200, "{}");
     const response = await serveSessionSettingsUpdate(
       post({ action: "donate", username: "burner_acct", auth_token: "zzz", ct0: "c".repeat(32) }),
-      { NITTER_SESSIONS: "unused", SESSION_STORE: new FakeKV() as unknown as KVNamespace },
+      { SESSION_STORE: new FakeKV() as unknown as KVNamespace },
     );
     expect(response.status).toBe(400);
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -195,7 +198,7 @@ describe("POST /settings/sessions", () => {
   it("stores a verified donation under a new steward cookie", async () => {
     mockXResponse(200, profileBody(BURNER_ID, "burner_acct"));
     const kv = new FakeKV() as unknown as KVNamespace;
-    const env = { NITTER_SESSIONS: "unused", SESSION_STORE: kv };
+    const env = { SESSION_STORE: kv };
 
     const response = await serveSessionSettingsUpdate(
       post({ action: "donate", username: "burner_acct", auth_token: "a".repeat(32), ct0: "c".repeat(40), visibility: "public" }),
@@ -228,7 +231,7 @@ describe("POST /settings/sessions", () => {
 
     const response = await serveSessionSettingsUpdate(
       post({ action: "donate", username: "burner_acct", auth_token: "a".repeat(32), ct0: "c".repeat(32) }),
-      { NITTER_SESSIONS: "unused", SESSION_STORE: kv },
+      { SESSION_STORE: kv },
     );
     expect(response.status).toBe(400);
     expect(await response.text()).toContain("X rejected these cookies");
@@ -239,7 +242,7 @@ describe("POST /settings/sessions", () => {
     const kv = new FakeKV() as unknown as KVNamespace;
     const steward = newStewardToken();
     await putStewardSessions(kv, steward, [donationRecord("111", steward, "public")]);
-    const env = { NITTER_SESSIONS: "unused", SESSION_STORE: kv };
+    const env = { SESSION_STORE: kv };
     const label = sessionLabel(env, { id: "111" });
 
     const toggled = await serveSessionSettingsUpdate(
@@ -262,7 +265,7 @@ describe("POST /settings/sessions", () => {
     const owner = newStewardToken();
     const attacker = newStewardToken();
     await putStewardSessions(kv, owner, [donationRecord("111", owner, "public")]);
-    const env = { NITTER_SESSIONS: "unused", SESSION_STORE: kv };
+    const env = { SESSION_STORE: kv };
     const label = sessionLabel(env, { id: "111" });
 
     const response = await serveSessionSettingsUpdate(

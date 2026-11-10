@@ -1,12 +1,13 @@
 import { createHash, createHmac, randomBytes } from "node:crypto";
-import { parseSessions, type CookieSession } from "./session";
-import { listDonatedSessions, type DonatedSession } from "./session-store";
+import type { CookieSession } from "./session";
+import { getOperatorSessions, listDonatedSessions, type DonatedSession } from "./session-store";
 
-// Session pool assembly: operator sessions from the NITTER_SESSIONS secret
-// plus visitor donations from the SESSION_STORE KV namespace. Donations marked
-// "private" are only ever used for requests that carry the donating browser's
-// steward cookie, and are served before the shared pool so donors' own traffic
-// leans on their own session first.
+// Session pool assembly: every session lives in the SESSION_STORE KV namespace —
+// the operator's own under "operator/sessions" (seeded with scripts/seed-sessions.ts)
+// plus visitor donations under "owner/<token>". Donations marked "private" are
+// only ever used for requests that carry the donating browser's steward cookie,
+// and are served before the shared pool so donors' own traffic leans on their
+// own session first.
 
 export const STEWARD_COOKIE = "nitter_steward";
 export const STEWARD_MAX_AGE = 31_536_000;
@@ -34,10 +35,12 @@ export function stewardCookie(token: string, secure: boolean): string {
   return `${STEWARD_COOKIE}=${token}; Path=/; Max-Age=${STEWARD_MAX_AGE}; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`;
 }
 
-export function parseEnvSessions(env: Env): CookieSession[] {
+export async function loadOperatorSessions(env: Env): Promise<CookieSession[]> {
+  if (!env.SESSION_STORE) return [];
   try {
-    return parseSessions(env.NITTER_SESSIONS ?? "");
+    return await getOperatorSessions(env.SESSION_STORE);
   } catch {
+    // A KV outage must not take pages down; fall back to donations only.
     return [];
   }
 }
@@ -53,7 +56,7 @@ export async function loadDonatedSessions(env: Env): Promise<DonatedSession[]> {
 }
 
 export function assemblePool(
-  envSessions: CookieSession[],
+  operator: CookieSession[],
   donated: DonatedSession[],
   stewardToken: string | undefined,
 ): CookieSession[] {
@@ -63,7 +66,7 @@ export function assemblePool(
   const shared = donated.filter((session) => session.visibility === "public");
   const seen = new Set<string>();
   const pool: CookieSession[] = [];
-  for (const session of [...own, ...envSessions, ...shared]) {
+  for (const session of [...own, ...operator, ...shared]) {
     if (seen.has(session.id)) continue;
     seen.add(session.id);
     pool.push(session);
@@ -73,7 +76,7 @@ export function assemblePool(
 
 export async function loadSessionPool(env: Env, request: Request): Promise<CookieSession[]> {
   return assemblePool(
-    parseEnvSessions(env),
+    await loadOperatorSessions(env),
     await loadDonatedSessions(env),
     stewardTokenFromRequest(request),
   );
@@ -85,7 +88,7 @@ export async function loadAllSessions(env: Env): Promise<CookieSession[]> {
   const donated = await loadDonatedSessions(env);
   const seen = new Set<string>();
   const all: CookieSession[] = [];
-  for (const session of [...parseEnvSessions(env), ...donated]) {
+  for (const session of [...await loadOperatorSessions(env), ...donated]) {
     if (seen.has(session.id)) continue;
     seen.add(session.id);
     all.push(session);
@@ -98,13 +101,13 @@ export async function loadAllSessions(env: Env): Promise<CookieSession[]> {
 export type SessionOrigin = "operator" | "donor" | "you";
 
 // Public labels identify pool sessions in the UI without exposing X user ids
-// or usernames. Keyed with a secret derived from instance secrets so outsiders
+// or usernames. Keyed with a secret derived from NITTER_HMAC_KEY so outsiders
 // cannot confirm a guessed account id by hashing it (X knows user ids; plain
-// sha256 would let it match labels to accounts). Rotating NITTER_HMAC_KEY or
-// NITTER_SESSIONS changes all labels.
+// sha256 would let it match labels to accounts). Rotating NITTER_HMAC_KEY
+// changes all labels.
 export function sessionLabel(env: Env, session: Pick<CookieSession, "id">): string {
   const key = createHash("sha256")
-    .update(`${env.NITTER_HMAC_KEY ?? ""}|${env.NITTER_SESSIONS ?? ""}|nitterts-session-label`)
+    .update(`${env.NITTER_HMAC_KEY ?? ""}|nitterts-session-label`)
     .digest();
   return `anon-${createHmac("sha256", key).update(session.id).digest("hex").slice(0, 10)}`;
 }

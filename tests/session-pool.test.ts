@@ -3,14 +3,21 @@ import type { CookieSession } from "../src/session";
 import {
   assemblePool,
   loadAllSessions,
+  loadOperatorSessions,
   loadSessionPool,
   newStewardToken,
-  parseEnvSessions,
   sessionCreatedAt,
   sessionLabel,
   stewardTokenFromRequest,
 } from "../src/session-pool";
-import { getStewardSessions, listDonatedSessions, putStewardSessions, type DonatedSession } from "../src/session-store";
+import {
+  getStewardSessions,
+  listDonatedSessions,
+  OPERATOR_KEY,
+  putOperatorSessions,
+  putStewardSessions,
+  type DonatedSession,
+} from "../src/session-store";
 
 class FakeKV {
   private map = new Map<string, string>();
@@ -46,10 +53,6 @@ function envSession(id: string, username = "op"): CookieSession {
   return { kind: "cookie", username, id, authToken: "a".repeat(32), ct0: "c".repeat(32) };
 }
 
-function envSessionLine(id: string, username = "op"): string {
-  return JSON.stringify({ kind: "cookie", username, id, auth_token: "a".repeat(32), ct0: "c".repeat(32) });
-}
-
 function donation(id: string, ownerToken: string, visibility: "public" | "private"): DonatedSession {
   return {
     kind: "cookie",
@@ -66,10 +69,7 @@ function donation(id: string, ownerToken: string, visibility: "public" | "privat
 const operator = envSession(snowflakeFor("2019-06-01T00:00:00Z"));
 const steward = newStewardToken();
 const other = newStewardToken();
-const env = {
-  NITTER_SESSIONS: `${envSessionLine(operator.id)}\n`,
-  SESSION_STORE: new FakeKV() as unknown as KVNamespace,
-};
+const env = { SESSION_STORE: new FakeKV() as unknown as KVNamespace };
 
 describe("steward identity", () => {
   it("reads a valid token from the cookie header", () => {
@@ -123,7 +123,7 @@ describe("labels and ages", () => {
     expect(sessionLabel(env, envSession("9876543210987654321"))).not.toBe(first);
   });
 
-  it("re-keys labels when instance secrets rotate", () => {
+  it("re-keys labels when the HMAC key rotates", () => {
     const session = envSession("1234567890123456789");
     expect(sessionLabel({ ...env, NITTER_HMAC_KEY: "fresh-key" }, session)).not.toBe(sessionLabel(env, session));
   });
@@ -165,11 +165,29 @@ describe("session store", () => {
     await putStewardSessions(kv, steward, []);
     expect(await listDonatedSessions(kv)).toEqual([]);
   });
+
+  it("round-trips the operator record and drops malformed entries", async () => {
+    const kv = new FakeKV() as unknown as KVNamespace;
+    await putOperatorSessions(kv, [operator]);
+    const loaded = await loadOperatorSessions({ SESSION_STORE: kv });
+    expect(loaded).toEqual([operator]);
+
+    await kv.put(OPERATOR_KEY, JSON.stringify([
+      { kind: "cookie", username: "op", id: "55", auth_token: "f".repeat(32), ct0: "9".repeat(32) },
+      { kind: "cookie", id: "nope" },
+    ]));
+    const filtered = await loadOperatorSessions({ SESSION_STORE: kv });
+    expect(filtered.map((session) => session.id)).toEqual(["55"]);
+
+    await putOperatorSessions(kv, []);
+    expect(await loadOperatorSessions({ SESSION_STORE: kv })).toEqual([]);
+  });
 });
 
 describe("loadSessionPool / loadAllSessions", () => {
   it("serves operator sessions plus public and own private donations", async () => {
     const kv = new FakeKV() as unknown as KVNamespace;
+    await putOperatorSessions(kv, [operator]);
     await putStewardSessions(kv, steward, [
       donation("100", steward, "private"),
       donation("101", steward, "public"),
@@ -178,7 +196,7 @@ describe("loadSessionPool / loadAllSessions", () => {
       donation("200", other, "private"),
       donation("201", other, "public"),
     ]);
-    const testEnv = { NITTER_SESSIONS: env.NITTER_SESSIONS, SESSION_STORE: kv };
+    const testEnv = { SESSION_STORE: kv };
 
     const anonymous = await loadSessionPool(testEnv, new Request("https://nitter.test/"));
     expect(anonymous.map((session) => session.id)).toEqual([operator.id, "101", "201"]);
@@ -192,20 +210,22 @@ describe("loadSessionPool / loadAllSessions", () => {
     expect(everything.map((session) => session.id).sort()).toEqual([operator.id, "100", "101", "200", "201"].sort());
   });
 
-  it("falls back to operator sessions when the store fails or is unbound", async () => {
+  it("serves an empty pool when the store fails or is unbound", async () => {
     const broken = {
       get: () => Promise.reject(new Error("kv down")),
       list: () => Promise.reject(new Error("kv down")),
     } as unknown as KVNamespace;
     const pool = await loadSessionPool({ ...env, SESSION_STORE: broken }, new Request("https://nitter.test/"));
-    expect(pool.map((session) => session.id)).toEqual([operator.id]);
+    expect(pool).toEqual([]);
 
-    const unbound = await loadSessionPool({ NITTER_SESSIONS: env.NITTER_SESSIONS }, new Request("https://nitter.test/"));
-    expect(unbound).toHaveLength(1);
+    const unbound = await loadSessionPool({}, new Request("https://nitter.test/"));
+    expect(unbound).toEqual([]);
   });
 
-  it("returns no sessions for a broken operator secret", () => {
-    expect(parseEnvSessions({ NITTER_SESSIONS: "not json" })).toEqual([]);
-    expect(parseEnvSessions({})).toEqual([]);
+  it("returns no sessions for a broken operator record", async () => {
+    const kv = new FakeKV() as unknown as KVNamespace;
+    await kv.put(OPERATOR_KEY, "not json");
+    expect(await loadOperatorSessions({ SESSION_STORE: kv })).toEqual([]);
+    expect(await loadOperatorSessions({})).toEqual([]);
   });
 });

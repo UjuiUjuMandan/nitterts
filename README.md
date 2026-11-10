@@ -37,18 +37,40 @@ npx wrangler pages secret put <NAME> --project-name nitterts
 
 | Secret | Required | Description |
 |---|---|---|
-| `NITTER_SESSIONS` | yes | X cookie sessions, one NDJSON object per line: `{"kind":"cookie","username":"…","id":"…","auth_token":"…","ct0":"…"}` |
 | `NITTER_HMAC_KEY` | no | HMAC key signing `/video` proxy URLs (e.g. `openssl rand -hex 32`); rotating it invalidates previously rendered video links. Also derives the anonymous session labels shown on `/settings/sessions` |
+
+## Sessions (SESSION_STORE KV)
+
+All X cookie sessions — the operator's own and visitor donations — live in the
+`SESSION_STORE` KV namespace bound in `wrangler.jsonc` (required; without the
+binding the pool is simply empty):
+
+```sh
+npx wrangler kv namespace create SESSION_STORE
+# paste the printed id into "kv_namespaces" in wrangler.jsonc
+```
+
+Seed your operator sessions from the same NDJSON the old `NITTER_SESSIONS`
+secret used, one object per line
+(`{"kind":"cookie","username":"…","id":"…","auth_token":"…","ct0":"…"}`):
+
+```sh
+npm run seed:sessions                    # reads ./sessions.jsonl → remote KV
+npm run seed:sessions -- --file my.jsonl --local
+```
+
+Re-run it whenever a session logs out or gets rate-limited to death; it
+replaces the `operator/sessions` key wholesale.
 
 ## Visitor session donations (`/settings/sessions`)
 
 Visitors can donate their own X cookie sessions through the `/settings/sessions`
-page, managed alongside the operator sessions from `NITTER_SESSIONS`:
+page, served alongside the operator sessions from KV:
 
 - **Pool view** — all live sessions with anonymous labels (`anon-…`), health
   status, and account age. X ids and usernames are never rendered; labels are
-  HMACs keyed with the instance secrets, so they cannot be matched to accounts
-  by outsiders (rotating `NITTER_HMAC_KEY` or `NITTER_SESSIONS` relabels).
+  HMACs keyed with `NITTER_HMAC_KEY`, so they cannot be matched to accounts
+  by outsiders (rotating it relabels).
 - **Donations** — visitors paste `auth_token` and `ct0` cookies plus the
   username. The session is verified live against X before being stored (which
   also derives the account id; wrong or logged-out cookies are rejected).
@@ -60,19 +82,11 @@ page, managed alongside the operator sessions from `NITTER_SESSIONS`:
   no IPs stored. Clearing that cookie loses management access (logging the
   session out on X invalidates it everywhere as a last resort).
 
-Donations require an optional KV namespace binding:
-
-```sh
-npx wrangler kv namespace create SESSION_STORE
-# then uncomment "kv_namespaces" in wrangler.jsonc with the printed id
-```
-
-Without the binding the instance behaves exactly as before (operator sessions
-only) and the page shows donations as disabled. Donated sessions live in one
-KV record per donor (`owner/<token>`), so management is a single-key operation
-and a fresh donation may take up to ~60s to serve other visitors (KV list
-eventual consistency). `/.health` aggregates the shared pool; `/.sessions`
-(operator, `NITTER_DEBUG=true`) reports everything including private sessions.
+Donated sessions live in one KV record per donor (`owner/<token>`), so
+management is a single-key operation and a fresh donation may take up to ~60s
+to serve other visitors (KV list eventual consistency). `/.health` aggregates
+the shared pool; `/.sessions` (operator, `NITTER_DEBUG=true`) reports
+everything including private sessions.
 
 ## Architecture notes
 

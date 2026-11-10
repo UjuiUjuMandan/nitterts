@@ -14,7 +14,7 @@ export function parseSessions(jsonl: string): CookieSession[] {
     .map((line, index) => parseSession(line, index + 1));
 
   if (sessions.length === 0) {
-    throw new Error("NITTER_SESSIONS contains no cookie sessions");
+    throw new Error("sessions file contains no cookie sessions");
   }
 
   return sessions;
@@ -25,11 +25,11 @@ function parseSession(line: string, lineNumber: number): CookieSession {
   try {
     value = JSON.parse(line);
   } catch {
-    throw new Error(`NITTER_SESSIONS line ${lineNumber} is not valid JSON`);
+    throw new Error(`sessions file line ${lineNumber} is not valid JSON`);
   }
 
   if (!isRecord(value) || value.kind !== "cookie") {
-    throw new Error(`NITTER_SESSIONS line ${lineNumber} is not a cookie session`);
+    throw new Error(`sessions file line ${lineNumber} is not a cookie session`);
   }
 
   const username = requireString(value, "username", lineNumber);
@@ -47,7 +47,7 @@ function requireString(
 ): string {
   const field = value[key];
   if (typeof field !== "string" || field.length === 0) {
-    throw new Error(`NITTER_SESSIONS line ${lineNumber} has invalid ${key}`);
+    throw new Error(`sessions file line ${lineNumber} has invalid ${key}`);
   }
   return field;
 }

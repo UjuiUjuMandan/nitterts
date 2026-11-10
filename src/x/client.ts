@@ -174,11 +174,11 @@ export async function fetchGraphql(
 }
 
 export class XApiError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-  ) {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
     super(message);
+    this.status = status;
     this.name = "XApiError";
   }
 }

@@ -4,10 +4,37 @@ import { AllSessionsLimitedError, withCookieSession } from "../src/x/sessions";
 import { recordLimitedSessionParsed, resetRateLimitTracking } from "../src/x/rate-limit";
 import { resetMetricsSink } from "../src/x/metrics-sink";
 import { onRequestGet as serveApiUser } from "../functions/api/users/[username]";
+import { putOperatorSessions } from "../src/session-store";
 import { XApiError } from "../src/x/client";
 
+class FakeKV {
+  private map = new Map<string, string>();
+
+  async get(key: string, options?: { type?: string }): Promise<unknown> {
+    const value = this.map.get(key);
+    if (value === undefined) return null;
+    return options?.type === "json" ? JSON.parse(value) : value;
+  }
+
+  async put(key: string, value: string): Promise<void> {
+    this.map.set(key, value);
+  }
+
+  async delete(key: string): Promise<void> {
+    this.map.delete(key);
+  }
+
+  async list(options?: { prefix?: string }): Promise<{ keys: Array<{ name: string }>; list_complete: true }> {
+    const prefix = options?.prefix ?? "";
+    return {
+      keys: [...this.map.keys()].filter((key) => key.startsWith(prefix)).sort().map((name) => ({ name })),
+      list_complete: true,
+    };
+  }
+}
+
 function session(id: string): CookieSession {
-  return { kind: "cookie", username: `user_${id}`, id, authToken: "a", ct0: "c" };
+  return { kind: "cookie", username: `user_${id.slice(0, 4)}`, id, authToken: "a".repeat(32), ct0: "c".repeat(32) };
 }
 
 const first = session("111");
@@ -80,19 +107,13 @@ describe("all-limited HTTP responses", () => {
   });
 
   it("answers 503 with Retry-After from the API route", async () => {
+    const kv = new FakeKV() as unknown as KVNamespace;
+    await putOperatorSessions(kv, [session("123456789012345678")]);
     recordLimitedSessionParsed("123456789012345678", resetIn(4));
     const response = await serveApiUser({
       request: new Request("https://nitter.test/api/users/jack"),
       params: { username: "jack" },
-      env: {
-        NITTER_SESSIONS: JSON.stringify({
-          kind: "cookie",
-          username: "op",
-          id: "123456789012345678",
-          auth_token: "a".repeat(32),
-          ct0: "c".repeat(32),
-        }),
-      },
+      env: { SESSION_STORE: kv },
     } as never);
 
     expect(response.status).toBe(503);

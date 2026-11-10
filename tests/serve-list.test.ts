@@ -50,7 +50,7 @@ describe("serveListSlugRedirect", () => {
   it("redirects to the canonical ID while preserving cursor", async () => {
     const response = await serveListSlugRedirect(
       new Request("https://nitter.test/alice/lists/news?cursor=next-page"),
-      { NITTER_SESSIONS: "unused" },
+      {},
       "alice",
       "news",
     );
