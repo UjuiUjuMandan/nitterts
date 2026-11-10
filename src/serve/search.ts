@@ -98,7 +98,7 @@ export async function serveSearchPage(request: Request, env: Env, username?: str
       return { timeline, profile, photos };
     });
     const basedIn = result.profile && !result.profile.suspended
-      ? (await fetchOptionalAccountInfo(sessions, username ?? result.profile.username))?.basedIn ?? ""
+      ? (await fetchOptionalAccountInfo(sessions, username ?? result.profile.username, request))?.basedIn ?? ""
       : "";
     const profile = result.profile ? { ...result.profile, basedIn } : undefined;
     return html(renderSearchPage(search, result, profile, result.photos, preferences), 200);

@@ -54,7 +54,7 @@ export async function serveProfilePage(
         return { profile, timeline, photos };
       },
     );
-    const basedIn = profile.suspended ? "" : (await fetchOptionalAccountInfo(sessions, username))?.basedIn ?? "";
+    const basedIn = profile.suspended ? "" : (await fetchOptionalAccountInfo(sessions, username, request))?.basedIn ?? "";
     return html(renderProfilePage({ ...profile, basedIn }, timeline, tab, photos, preferences, cursor, mediaView), 200);
   } catch (error) {
     const notFound = error instanceof ProfileNotFoundError;

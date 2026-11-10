@@ -1,7 +1,36 @@
 import { describe, expect, it } from "vitest";
 import { parseAccountInfo, parseProfile, ProfileNotFoundError } from "../src/x/profile";
+import { renderProfileCard } from "../src/render/profile";
 
 describe("parseProfile", () => {
+  it.each([
+    "落書きやイラスト@eluthel",
+    "絵@eluthel",
+    "サブ@eluthel",
+    "😀落書きやイラスト@eluthel",
+  ])("links CJK-adjacent bio mentions with code-point offsets: %s", (description) => {
+    const profile = parseProfile({ data: { user: { result: {
+      rest_id: "1",
+      legacy: { screen_name: "eluthel1", description },
+    } } } });
+    const start = [...description.slice(0, description.indexOf("@"))].length;
+    expect(profile.bioLinks).toEqual([{ kind: "mention", start, end: start + 8, url: "/eluthel", display: "@eluthel" }]);
+    expect(renderProfileCard(profile)).toContain('<a href="/eluthel"');
+  });
+
+  it("does not link emails, overlong handles, or mentions inside URL entities", () => {
+    const description = "名@example.com ascii@example.com e\u0301@example.com @abcdefghijklmnop https://example.com/@eluthel";
+    const start = description.indexOf("https://");
+    const profile = parseProfile({ data: { user: { result: {
+      rest_id: "1",
+      legacy: { screen_name: "alice", description, entities: { description: { urls: [
+        { indices: [start, description.length], expanded_url: "https://example.com/@eluthel", display_url: "example.com/@eluthel" },
+      ] } } },
+    } } } });
+    expect(profile.bioLinks).toHaveLength(1);
+    expect(profile.bioLinks[0]?.kind).toBe("url");
+  });
+
   it("parses the modern user shape", () => {
     const profile = parseProfile({
       data: {

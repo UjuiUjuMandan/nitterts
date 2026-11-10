@@ -76,6 +76,11 @@ eventual consistency). `/.health` aggregates the shared pool; `/.sessions`
 
 ## Architecture notes
 
+- Account details (including "Based in") are fetched only on `/username/about`.
+  Profile and search pages read cached details without fetching on a miss.
+  Details expire after 24 hours in Cloudflare's regional Cache API; cache
+  eviction or visiting another region can leave the field absent until someone
+  opens `/about` there again.
 - Health metrics live in a Durable Object on the separate `nitterts-health` Worker,
   bound from Pages via `script_name` (`HEALTH_METRICS`); when absent the app falls back
   to isolate-local stats.

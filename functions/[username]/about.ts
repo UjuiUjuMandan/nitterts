@@ -19,7 +19,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       const value = await fetchProfile(username, session);
       return { ...value, username: value.username || username, name: value.name || username };
     });
-    const accountInfo = profile.suspended ? undefined : await fetchOptionalAccountInfo(sessions, username);
+    const accountInfo = profile.suspended ? undefined : await fetchOptionalAccountInfo(sessions, username, context.request, true);
     return html(renderAboutPage({ ...profile, basedIn: accountInfo?.basedIn ?? "" }, preferences, accountInfo), 200);
   } catch (error) {
     const notFound = error instanceof ProfileNotFoundError;

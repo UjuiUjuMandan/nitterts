@@ -249,7 +249,9 @@ function bioLinks(text: string, urls: unknown[] | undefined): TweetLink[] {
     links.push({ kind: "url", start, end, url, display: stringValue(record.display_url) });
   }
 
-  for (const match of text.matchAll(/(^|[^\p{L}\p{M}\p{N}!#$%&'*+\-./=?^_`{|}~])@([A-Za-z0-9_]{1,15})(?![A-Za-z0-9_])/gu)) {
+  // CJK prose often has no separating space before a handle. Preserve email
+  // boundaries (including CJK local parts) and reject overlong handles.
+  for (const match of text.matchAll(/(^|[^\p{L}\p{M}\p{N}!#$%&'*+\-./=?^_`{|}~]|[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}])@([A-Za-z0-9_]{1,15})(?![A-Za-z0-9_]|\.[A-Za-z0-9])/gu)) {
     const username = match[2];
     if (!username) continue;
     const codeUnitStart = (match.index ?? 0) + (match[1]?.length ?? 0);
