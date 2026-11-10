@@ -3,14 +3,28 @@
    (which we never edit, since npm run build:assets regenerates it from
    nitter/src/sass). */
 
-/* The steward-row forms hold only a submit button plus hidden inputs.
-   Upstream's global `button { float: right }` pulls those buttons out of
-   flow, collapsing the forms to zero height so the next in-flow block
-   (the "Donate a session" legend) painted on top of the buttons. Keep the
-   buttons in flow instead; the forms are block-level and stack normally. */
-.preferences .pref-group form button {
+/* Steward rows ("Your donated sessions"). One flex line per session:
+   info text left, both action buttons together on the right; wraps below
+   the text only when narrow. Upstream's global button { float: right }
+   and .pref-group { display: block } would otherwise stack every piece
+   on its own line. Floats are ignored inside flex containers. */
+.preferences .steward-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin: 2px 0 6px 0;
+}
+.preferences .steward-row .steward-actions {
+  display: flex;
+  gap: 8px;
+}
+.preferences .steward-row .steward-actions form {
+  display: flex;
+}
+.preferences .steward-row button {
   float: none;
-  margin: 2px 0;
+  margin: 0;
 }
 
 /* Upstream sass (nitter/src/sass/inputs.scss) styles only

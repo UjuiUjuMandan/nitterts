@@ -50,7 +50,8 @@ function stewardRow(entry: PoolSessionView): string {
     ? `<form method="post" action="/settings/sessions"><input type="hidden" name="action" value="visibility"><input type="hidden" name="session" value="${escapeAttribute(entry.label)}"><input type="hidden" name="visibility" value="private"><button type="submit">Use for my requests only</button></form>`
     : `<form method="post" action="/settings/sessions"><input type="hidden" name="action" value="visibility"><input type="hidden" name="session" value="${escapeAttribute(entry.label)}"><input type="hidden" name="visibility" value="public"><button type="submit">Use for all visitors</button></form>`;
   const revoke = `<form method="post" action="/settings/sessions"><input type="hidden" name="action" value="revoke"><input type="hidden" name="session" value="${escapeAttribute(entry.label)}"><button type="submit">Remove</button></form>`;
-  return `<div class="pref-group"><span>${escapeHtml(entry.label)}</span><span>${entry.visibility === "public" ? "public" : "private"}${entry.donatedAt ? `, donated ${escapeHtml(entry.donatedAt)}` : ""}</span>${toggle}${revoke}</div>`;
+  const info = `${escapeHtml(entry.label)} ${entry.visibility === "public" ? "public" : "private"}${entry.donatedAt ? ` ${escapeHtml(entry.donatedAt)}` : ""}`;
+  return `<div class="pref-group steward-row"><span class="steward-info">${info}</span><span class="steward-actions">${toggle}${revoke}</span></div>`;
 }
 
 export function renderSessionSettingsPage(preferences: PagePreferences, view: SessionSettingsView): string {
