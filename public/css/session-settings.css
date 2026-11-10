@@ -1,0 +1,14 @@
+/* /settings/sessions page styles.
+   Loaded only on that page, on top of the upstream-generated style.css
+   (which we never edit, since npm run build:assets regenerates it from
+   nitter/src/sass). */
+
+/* The steward-row forms hold only a submit button plus hidden inputs.
+   Upstream's global `button { float: right }` pulls those buttons out of
+   flow, collapsing the forms to zero height so the next in-flow block
+   (the "Donate a session" legend) painted on top of the buttons. Keep the
+   buttons in flow instead; the forms are block-level and stack normally. */
+.preferences .pref-group form button {
+  float: none;
+  margin: 2px 0;
+}
