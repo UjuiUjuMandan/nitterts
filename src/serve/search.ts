@@ -4,7 +4,7 @@ import { preferencesFromRequest } from "../preferences";
 import { loadSessionPool } from "../session-pool";
 import { fetchProfile, XApiError } from "../x/client";
 import { ProfileNotFoundError, type Profile } from "../x/profile";
-import { withCookieSession } from "../x/sessions";
+import { AllSessionsLimitedError, withCookieSession } from "../x/sessions";
 import {
   filterSearchTimeline,
   fetchListSearch,
@@ -104,10 +104,29 @@ export async function serveSearchPage(request: Request, env: Env, username?: str
     return html(renderSearchPage(search, result, profile, result.photos, preferences), 200);
   } catch (error) {
     const notFound = error instanceof ProfileNotFoundError;
-    const status = notFound ? 404 : error instanceof XApiError ? 502 : 500;
+    const status = notFound ? 404 : error instanceof XApiError ? 502 : error instanceof AllSessionsLimitedError ? 503 : 500;
     console.error(JSON.stringify({ message: "search request failed", username, query, kind, upstreamStatus: error instanceof XApiError ? error.status : undefined, error: error instanceof Error ? error.message : String(error) }));
-    return html(renderErrorPage(notFound ? "User not found" : "Unable to search", status, requestPath(request), xSearchUrl(search)), status);
+    return html(renderErrorPage(notFound ? "User not found" : "Unable to search", status, requestPath(request), xSearchUrl(search)), status, retryAfter(error));
   }
+}
+
+function retryAfter(error: unknown): Record<string, string> | undefined {
+  return error instanceof AllSessionsLimitedError ? { "retry-after": String(error.retryAfterSeconds) } : undefined;
+}
+
+function html(body: string, status: number, headers: Record<string, string> = {}): Response {
+  return new Response(body, {
+    status,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "content-security-policy": "default-src 'self'; img-src 'self' data:; media-src 'self' blob: https://video.twimg.com; script-src 'self' 'unsafe-hashes' 'sha256-/Z4pjjEaN4JuXiqMBajQpiZZINsH7QgIOYHQmRoj740='; worker-src 'self' blob:; connect-src 'self' https://video.twimg.com; style-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+      "referrer-policy": "no-referrer",
+      "x-content-type-options": "nosniff",
+      "cache-control": "private, no-store",
+      vary: "Cookie",
+      ...headers,
+    },
+  });
 }
 
 function validDate(value: string | null): string | undefined {
@@ -122,18 +141,4 @@ function validNumber(value: string | null): string | undefined {
   if (!value || !/^\d{1,10}$/.test(value)) return undefined;
   const number = Number(value);
   return Number.isSafeInteger(number) && number <= 2_147_483_647 ? String(number) : undefined;
-}
-
-function html(body: string, status: number): Response {
-  return new Response(body, {
-    status,
-    headers: {
-      "content-type": "text/html; charset=utf-8",
-      "content-security-policy": "default-src 'self'; img-src 'self' data:; media-src 'self' blob: https://video.twimg.com; script-src 'self' 'unsafe-hashes' 'sha256-/Z4pjjEaN4JuXiqMBajQpiZZINsH7QgIOYHQmRoj740='; worker-src 'self' blob:; connect-src 'self' https://video.twimg.com; style-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
-      "referrer-policy": "no-referrer",
-      "x-content-type-options": "nosniff",
-      "cache-control": "private, no-store",
-      vary: "Cookie",
-    },
-  });
 }

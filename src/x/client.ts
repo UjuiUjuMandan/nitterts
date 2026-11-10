@@ -1,6 +1,5 @@
 import type { CookieSession } from "../session";
 import { parseAccountInfo, parseProfile, type AccountInfo, type Profile } from "./profile";
-import { metricsSink } from "./metrics-sink";
 import {
   beginSessionRequest,
   endSessionRequest,
@@ -9,6 +8,7 @@ import {
   recordApiStatusParsed,
   recordLimitedSessionParsed,
 } from "./rate-limit";
+import { dispatchSinkCall, metricsSink } from "./metrics-sink";
 import { fetchTidPair, generateTransactionId } from "./tid";
 
 const GRAPH_USER = "Gb-d6r0vxPOADdG62OEBpQ/UserByScreenName";
@@ -112,10 +112,9 @@ export async function fetchGraphql(
   const sink = metricsSink();
   const pendingNonce = crypto.randomUUID();
   // Metrics are best effort: a Durable Object outage must never fail or
-  // delay an X API request, so every sink RPC is fire-and-forget.
-  const record = (call: Promise<unknown>): void => {
-    void call.catch(() => {});
-  };
+  // delay an X API request, so every sink RPC is fire-and-forget (routed
+  // through ctx.waitUntil when installed, so delivery is still guaranteed).
+  const record = dispatchSinkCall;
   if (sink) record(sink.beginPending(session.id, pendingNonce));
   else beginSessionRequest(session.id);
   try {

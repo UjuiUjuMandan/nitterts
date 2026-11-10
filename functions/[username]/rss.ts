@@ -3,7 +3,7 @@ import { renderTimelineRss } from "../../src/render/rss";
 import { loadSessionPool } from "../../src/session-pool";
 import { fetchProfile, XApiError } from "../../src/x/client";
 import { ProfileNotFoundError } from "../../src/x/profile";
-import { withCookieSession } from "../../src/x/sessions";
+import { AllSessionsLimitedError, withCookieSession } from "../../src/x/sessions";
 import { fetchProfileTimeline } from "../../src/x/timeline";
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
@@ -35,7 +35,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     return new Response(renderTimelineRss(profile, timeline, origin), { status: 200, headers });
   } catch (error) {
     const notFound = error instanceof ProfileNotFoundError;
-    const status = notFound ? 404 : error instanceof XApiError ? 502 : 500;
+    const status = notFound ? 404 : error instanceof XApiError ? 502 : error instanceof AllSessionsLimitedError ? 503 : 500;
     console.error(
       JSON.stringify({
         message: "rss request failed",
@@ -44,9 +44,11 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         error: error instanceof Error ? error.message : String(error),
       }),
     );
+    const headers: Record<string, string> = { "content-type": "text/html; charset=utf-8" };
+    if (error instanceof AllSessionsLimitedError) headers["retry-after"] = String(error.retryAfterSeconds);
     return new Response(renderErrorPage(notFound ? "User not found" : "Unable to load feed", status, requestPath(context.request)), {
       status,
-      headers: { "content-type": "text/html; charset=utf-8" },
+      headers,
     });
   }
 };

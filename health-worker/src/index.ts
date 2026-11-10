@@ -7,14 +7,15 @@ type Snapshot = {
 };
 
 const ALARM_INTERVAL_MS = 60_000;
+const SNAPSHOT_DEBOUNCE_MS = 5_000;
 const PENDING_MAX_AGE_MS = 120_000;
 
 // Single global Durable Object holding cross-isolate health metrics, the
 // Workers analog of upstream Nitter's in-process session pool. Deployed as
 // its own Worker because Pages projects cannot host Durable Object classes;
 // the Pages project binds it via script_name. State is kept in memory and
-// snapshotted to storage by an alarm, so an eviction can lose at most one
-// minute of metrics.
+// snapshotted to storage by an alarm that also re-arms within ~5s of any
+// write, so an eviction loses at most a few seconds of metrics.
 type WorkerEnv = Record<string, unknown>;
 
 export class HealthMetrics extends DurableObject<WorkerEnv> {
@@ -36,11 +37,13 @@ export class HealthMetrics extends DurableObject<WorkerEnv> {
       this.apis.set(operation, perSession);
     }
     perSession.set(sessionId, status);
+    void this.snapshotSoon();
   }
 
   async recordLimited(sessionId: string, reset: number): Promise<void> {
     await this.loaded;
     this.limited.set(sessionId, reset);
+    void this.snapshotSoon();
   }
 
   async beginPending(sessionId: string, nonce: string): Promise<void> {
@@ -51,11 +54,26 @@ export class HealthMetrics extends DurableObject<WorkerEnv> {
       this.pending.set(sessionId, perSession);
     }
     perSession.set(nonce, Date.now());
+    void this.snapshotSoon();
   }
 
   async endPending(sessionId: string, nonce: string): Promise<void> {
     await this.loaded;
     this.pending.get(sessionId)?.delete(nonce);
+    void this.snapshotSoon();
+  }
+
+  // Currently-limited sessions with their reset epochs, so request handlers
+  // can pick fresh sessions first and fail fast with 503 when none remain.
+  async getLimitedResets(sessionIds: string[]): Promise<Record<string, number>> {
+    await this.loaded;
+    const now = Math.floor(Date.now() / 1000);
+    const resets: Record<string, number> = {};
+    for (const sessionId of sessionIds) {
+      const reset = this.limited.get(sessionId);
+      if (reset !== undefined && reset > now) resets[sessionId] = reset;
+    }
+    return resets;
   }
 
   async getHealth(sessionIds: string[]): Promise<HealthReport> {
@@ -141,12 +159,28 @@ export class HealthMetrics extends DurableObject<WorkerEnv> {
     for (const [sessionId, reset] of this.limited) {
       if (reset <= nowSeconds) this.limited.delete(sessionId);
     }
+    await this.snapshot();
+    await this.ctx.storage.setAlarm(now + ALARM_INTERVAL_MS);
+  }
+
+  // Pulls the periodic alarm closer after a write so an eviction cannot wipe
+  // more than a few seconds of metrics. Never pushes it further out.
+  private async snapshotSoon(): Promise<void> {
+    try {
+      const soon = Date.now() + SNAPSHOT_DEBOUNCE_MS;
+      const current = await this.ctx.storage.getAlarm();
+      if (current === null || current > soon) await this.ctx.storage.setAlarm(soon);
+    } catch {
+      // Snapshots are best effort; the regular alarm still fires.
+    }
+  }
+
+  private async snapshot(): Promise<void> {
     const snapshot: Snapshot = {
       apis: [...this.apis].map(([operation, perSession]) => [operation, [...perSession]]),
       limited: [...this.limited],
     };
     await this.ctx.storage.put("state", snapshot);
-    await this.ctx.storage.setAlarm(now + ALARM_INTERVAL_MS);
   }
 
   private isLimited(sessionId: string, now: number): boolean {

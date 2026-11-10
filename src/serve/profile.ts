@@ -3,7 +3,7 @@ import { MEDIA_VIEWS, preferencesFromRequest, type MediaView } from "../preferen
 import { loadSessionPool } from "../session-pool";
 import { fetchProfile, XApiError } from "../x/client";
 import { ProfileNotFoundError } from "../x/profile";
-import { withCookieSession } from "../x/sessions";
+import { AllSessionsLimitedError, withCookieSession } from "../x/sessions";
 import { fetchProfileTimeline, photoRail, type ProfileTab } from "../x/timeline";
 import { fetchOptionalAccountInfo } from "./account-info";
 
@@ -58,7 +58,7 @@ export async function serveProfilePage(
     return html(renderProfilePage({ ...profile, basedIn }, timeline, tab, photos, preferences, cursor, mediaView), 200);
   } catch (error) {
     const notFound = error instanceof ProfileNotFoundError;
-    const status = notFound ? 404 : error instanceof XApiError ? 502 : 500;
+    const status = notFound ? 404 : error instanceof XApiError ? 502 : error instanceof AllSessionsLimitedError ? 503 : 500;
     console.error(
       JSON.stringify({
         message: "profile page request failed",
@@ -68,11 +68,15 @@ export async function serveProfilePage(
         error: error instanceof Error ? error.message : String(error),
       }),
     );
-    return html(renderErrorPage(notFound ? "User not found" : "Unable to load profile", status, requestPath(request)), status);
+    return html(renderErrorPage(notFound ? "User not found" : "Unable to load profile", status, requestPath(request)), status, retryAfter(error));
   }
 }
 
-function html(body: string, status: number): Response {
+function retryAfter(error: unknown): Record<string, string> | undefined {
+  return error instanceof AllSessionsLimitedError ? { "retry-after": String(error.retryAfterSeconds) } : undefined;
+}
+
+function html(body: string, status: number, headers: Record<string, string> = {}): Response {
   return new Response(body, {
     status,
     headers: {
@@ -82,6 +86,7 @@ function html(body: string, status: number): Response {
       "x-content-type-options": "nosniff",
       "cache-control": "private, no-store",
       vary: "Cookie",
+      ...headers,
     },
   });
 }

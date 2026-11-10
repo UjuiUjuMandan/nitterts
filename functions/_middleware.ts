@@ -12,7 +12,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
     NITTER_THEME?: string;
   });
   installMediaSigner(context.env.NITTER_HMAC_KEY);
-  installMetricsSink(context.env.HEALTH_METRICS);
+  installMetricsSink(context.env.HEALTH_METRICS, (promise) => context.waitUntil(promise));
   const pathname = new URL(context.request.url).pathname;
   const redirect = context.request.method === "GET" || context.request.method === "HEAD"
     ? pathname.startsWith("/.") ? undefined : preferencesRedirect(context.request)

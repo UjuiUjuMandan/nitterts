@@ -4,7 +4,7 @@ import { preferencesFromRequest } from "../../../src/preferences";
 import { loadSessionPool } from "../../../src/session-pool";
 import { fetchConversation, parseReplySort, TweetNotFoundError } from "../../../src/x/conversation";
 import { XApiError } from "../../../src/x/client";
-import { withCookieSession } from "../../../src/x/sessions";
+import { AllSessionsLimitedError, withCookieSession } from "../../../src/x/sessions";
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const preferences = preferencesFromRequest(context.request);
@@ -29,7 +29,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     return html(renderStatusPage(conversation, preferences, cursor, sort), 200);
   } catch (error) {
     const notFound = error instanceof TweetNotFoundError;
-    const status = notFound ? 404 : error instanceof XApiError ? 502 : 500;
+    const status = notFound ? 404 : error instanceof XApiError ? 502 : error instanceof AllSessionsLimitedError ? 503 : 500;
     console.error(
       JSON.stringify({
         message: "status page request failed",
@@ -39,11 +39,15 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         error: error instanceof Error ? error.message : String(error),
       }),
     );
-    return html(renderErrorPage(notFound ? "Post not found" : "Unable to load post", status, requestPath(context.request)), status);
+    return html(renderErrorPage(notFound ? "Post not found" : "Unable to load post", status, requestPath(context.request)), status, retryAfter(error));
   }
 };
 
-function html(body: string, status: number): Response {
+function retryAfter(error: unknown): Record<string, string> | undefined {
+  return error instanceof AllSessionsLimitedError ? { "retry-after": String(error.retryAfterSeconds) } : undefined;
+}
+
+function html(body: string, status: number, headers: Record<string, string> = {}): Response {
   return new Response(body, {
     status,
     headers: {
@@ -53,6 +57,7 @@ function html(body: string, status: number): Response {
       "x-content-type-options": "nosniff",
       "cache-control": "private, no-store",
       vary: "Cookie",
+      ...headers,
     },
   });
 }

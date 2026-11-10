@@ -1,7 +1,7 @@
 import { loadSessionPool } from "../../../src/session-pool";
 import { fetchProfile, XApiError } from "../../../src/x/client";
 import { ProfileNotFoundError } from "../../../src/x/profile";
-import { withCookieSession } from "../../../src/x/sessions";
+import { AllSessionsLimitedError, withCookieSession } from "../../../src/x/sessions";
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const username = context.params.username;
@@ -29,15 +29,28 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       }),
     );
 
+    const headers: Record<string, string> = {};
+    if (error instanceof AllSessionsLimitedError) headers["retry-after"] = String(error.retryAfterSeconds);
     return Response.json(
       {
         error: notFound
           ? "Profile not found"
-          : upstreamStatus
-            ? "X API request failed"
-            : "Internal server error",
+          : error instanceof AllSessionsLimitedError
+            ? "All sessions rate-limited; retry later"
+            : upstreamStatus
+              ? "X API request failed"
+              : "Internal server error",
       },
-      { status: notFound || upstreamStatus === 404 ? 404 : upstreamStatus ? 502 : 500 },
+      {
+        status: notFound || upstreamStatus === 404
+          ? 404
+          : error instanceof AllSessionsLimitedError
+            ? 503
+            : upstreamStatus
+              ? 502
+              : 500,
+        headers,
+      },
     );
   }
 };

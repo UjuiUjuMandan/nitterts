@@ -80,6 +80,18 @@ export function recordLimitedSessionParsed(sessionId: string, reset: number): vo
   limitedSessions.set(sessionId, reset);
 }
 
+// Isolate-local counterpart of the DO's getLimitedResets: currently-limited
+// session ids mapped to their reset epochs, for session selection.
+export function localLimitedResets(sessionIds: string[]): Record<string, number> {
+  const now = Math.floor(Date.now() / 1000);
+  const resets: Record<string, number> = {};
+  for (const sessionId of sessionIds) {
+    const reset = limitedSessions.get(sessionId);
+    if (reset !== undefined && reset > now) resets[sessionId] = reset;
+  }
+  return resets;
+}
+
 export function sessionPoolHealth(sessions: CookieSession[]): HealthReport {
   const now = Math.floor(Date.now() / 1000);
   let oldest = Number.POSITIVE_INFINITY;
