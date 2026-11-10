@@ -12,3 +12,27 @@
   float: none;
   margin: 2px 0;
 }
+
+/* Upstream sass (nitter/src/sass/inputs.scss) styles only
+   input[type=text]/[type=number]; input[type=password] is never
+   included, so the auth_token/ct0 inputs fall back to browser-default
+   styling whenever build:assets regenerates style.css. Mirror the
+   text-input rules so the cookie inputs match the others. */
+.preferences input[type=password] {
+  background-color: var(--bg_elements);
+  padding: 1px 4px;
+  color: var(--fg_color);
+  border: 1px solid var(--accent_border);
+  border-radius: 0;
+  font-size: 14px;
+  height: 16px;
+  position: absolute;
+  right: 0;
+  max-width: 140px;
+}
+.preferences input[type=password]:hover {
+  border-color: var(--accent);
+}
+.preferences input[type=password]:active {
+  border-color: var(--accent_light);
+}
