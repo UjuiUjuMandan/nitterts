@@ -1,6 +1,7 @@
 import { renderAboutPage } from "../../src/render/about";
 import { renderErrorPage, requestPath } from "../../src/render/profile";
 import { preferencesFromRequest } from "../../src/preferences";
+import { loadSessionPool } from "../../src/session-pool";
 import { fetchOptionalAccountInfo } from "../../src/serve/account-info";
 import { fetchProfile, XApiError } from "../../src/x/client";
 import { ProfileNotFoundError } from "../../src/x/profile";
@@ -13,11 +14,12 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     return html(renderErrorPage("Invalid username", 400, requestPath(context.request)), 400);
   }
   try {
-    const profile = await withCookieSession(context.env.NITTER_SESSIONS, async (session) => {
+    const sessions = await loadSessionPool(context.env, context.request);
+    const profile = await withCookieSession(sessions, async (session) => {
       const value = await fetchProfile(username, session);
       return { ...value, username: value.username || username, name: value.name || username };
     });
-    const accountInfo = profile.suspended ? undefined : await fetchOptionalAccountInfo(context.env.NITTER_SESSIONS, username);
+    const accountInfo = profile.suspended ? undefined : await fetchOptionalAccountInfo(sessions, username);
     return html(renderAboutPage({ ...profile, basedIn: accountInfo?.basedIn ?? "" }, preferences, accountInfo), 200);
   } catch (error) {
     const notFound = error instanceof ProfileNotFoundError;

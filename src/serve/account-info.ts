@@ -1,9 +1,10 @@
+import type { CookieSession } from "../session";
 import { fetchAccountInfo } from "../x/client";
 import type { AccountInfo } from "../x/profile";
 import { withCookieSession } from "../x/sessions";
 
 export async function fetchOptionalAccountInfo(
-  sessions: string,
+  sessions: CookieSession[],
   username: string,
 ): Promise<AccountInfo | undefined> {
   try {

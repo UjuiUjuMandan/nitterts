@@ -1,4 +1,4 @@
-import { parseSessions } from "../src/session";
+import { loadAllSessions } from "../src/session-pool";
 import { metricsSink } from "../src/x/metrics-sink";
 import { sessionPoolDebug } from "../src/x/rate-limit";
 
@@ -6,12 +6,7 @@ export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
   if (env.NITTER_DEBUG !== "true") {
     return new Response("Not found", { status: 404 });
   }
-  let sessions;
-  try {
-    sessions = parseSessions(env.NITTER_SESSIONS ?? "");
-  } catch {
-    sessions = [];
-  }
+  const sessions = await loadAllSessions(env);
   const sink = metricsSink();
   let report;
   try {

@@ -1,6 +1,7 @@
 import { renderErrorPage, requestPath } from "../render/profile";
 import { renderSearchPage, VALID_SEARCH_FILTERS, xSearchUrl } from "../render/search";
 import { preferencesFromRequest } from "../preferences";
+import { loadSessionPool } from "../session-pool";
 import { fetchProfile, XApiError } from "../x/client";
 import { ProfileNotFoundError, type Profile } from "../x/profile";
 import { withCookieSession } from "../x/sessions";
@@ -68,7 +69,8 @@ export async function serveSearchPage(request: Request, env: Env, username?: str
   }
 
   try {
-    const result = await withCookieSession<SearchResults & { profile?: Profile; photos?: PhotoRailItem[] }>(env.NITTER_SESSIONS, async (session) => {
+    const sessions = await loadSessionPool(env, request);
+    const result = await withCookieSession<SearchResults & { profile?: Profile; photos?: PhotoRailItem[] }>(sessions, async (session) => {
       if (!username) {
         if (kind === "users") return await fetchUserSearch(query, session, cursor);
         if (kind === "lists") return await fetchListSearch(query, session, cursor);
@@ -96,7 +98,7 @@ export async function serveSearchPage(request: Request, env: Env, username?: str
       return { timeline, profile, photos };
     });
     const basedIn = result.profile && !result.profile.suspended
-      ? (await fetchOptionalAccountInfo(env.NITTER_SESSIONS, username ?? result.profile.username))?.basedIn ?? ""
+      ? (await fetchOptionalAccountInfo(sessions, username ?? result.profile.username))?.basedIn ?? ""
       : "";
     const profile = result.profile ? { ...result.profile, basedIn } : undefined;
     return html(renderSearchPage(search, result, profile, result.photos, preferences), 200);

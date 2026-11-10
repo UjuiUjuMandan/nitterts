@@ -38,7 +38,41 @@ npx wrangler pages secret put <NAME> --project-name nitterts
 | Secret | Required | Description |
 |---|---|---|
 | `NITTER_SESSIONS` | yes | X cookie sessions, one NDJSON object per line: `{"kind":"cookie","username":"…","id":"…","auth_token":"…","ct0":"…"}` |
-| `NITTER_HMAC_KEY` | no | HMAC key signing `/video` proxy URLs (e.g. `openssl rand -hex 32`); rotating it invalidates previously rendered video links |
+| `NITTER_HMAC_KEY` | no | HMAC key signing `/video` proxy URLs (e.g. `openssl rand -hex 32`); rotating it invalidates previously rendered video links. Also derives the anonymous session labels shown on `/settings/sessions` |
+
+## Visitor session donations (`/settings/sessions`)
+
+Visitors can donate their own X cookie sessions through the `/settings/sessions`
+page, managed alongside the operator sessions from `NITTER_SESSIONS`:
+
+- **Pool view** — all live sessions with anonymous labels (`anon-…`), health
+  status, and account age. X ids and usernames are never rendered; labels are
+  HMACs keyed with the instance secrets, so they cannot be matched to accounts
+  by outsiders (rotating `NITTER_HMAC_KEY` or `NITTER_SESSIONS` relabels).
+- **Donations** — visitors paste `auth_token` and `ct0` cookies plus the
+  username. The session is verified live against X before being stored (which
+  also derives the account id; wrong or logged-out cookies are rejected).
+- **Visibility** — donors choose per session whether it serves *all visitors*
+  (public) or *only their own requests* (private). Private sessions are used
+  first for the donating browser's traffic and are invisible to everyone else.
+- **Management** — donors toggle visibility or remove sessions at any time.
+  Ownership is an anonymous random token in an HttpOnly cookie; no accounts,
+  no IPs stored. Clearing that cookie loses management access (logging the
+  session out on X invalidates it everywhere as a last resort).
+
+Donations require an optional KV namespace binding:
+
+```sh
+npx wrangler kv namespace create SESSION_STORE
+# then uncomment "kv_namespaces" in wrangler.jsonc with the printed id
+```
+
+Without the binding the instance behaves exactly as before (operator sessions
+only) and the page shows donations as disabled. Donated sessions live in one
+KV record per donor (`owner/<token>`), so management is a single-key operation
+and a fresh donation may take up to ~60s to serve other visitors (KV list
+eventual consistency). `/.health` aggregates the shared pool; `/.sessions`
+(operator, `NITTER_DEBUG=true`) reports everything including private sessions.
 
 ## Architecture notes
 

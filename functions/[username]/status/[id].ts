@@ -1,6 +1,7 @@
 import { renderErrorPage, requestPath } from "../../../src/render/profile";
 import { renderStatusPage } from "../../../src/render/status";
 import { preferencesFromRequest } from "../../../src/preferences";
+import { loadSessionPool } from "../../../src/session-pool";
 import { fetchConversation, parseReplySort, TweetNotFoundError } from "../../../src/x/conversation";
 import { XApiError } from "../../../src/x/client";
 import { withCookieSession } from "../../../src/x/sessions";
@@ -22,7 +23,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   }
 
   try {
-    const conversation = await withCookieSession(context.env.NITTER_SESSIONS, (session) =>
+    const conversation = await withCookieSession(await loadSessionPool(context.env, context.request), (session) =>
       fetchConversation(id, session, cursor, sort),
     );
     return html(renderStatusPage(conversation, preferences, cursor, sort), 200);

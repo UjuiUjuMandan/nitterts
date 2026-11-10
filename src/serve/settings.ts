@@ -1,19 +1,6 @@
 import { encodePrefs, preferencesFromRequest, sanitizeReplace, THEMES, GALLERY_SIZES, MEDIA_VIEWS, PREFERENCE_KEYS, preferencesCookies, resetPreferenceCookies, type GallerySize, type MediaView, type PagePreferences, type Theme } from "../preferences";
 import { renderSettingsPage } from "../render/settings";
-
-const MAX_BODY_BYTES = 8 * 1024;
-
-// Cloudflare terminates TLS at its edge before the worker, so request.url can
-// arrive as http:// while the browser-originated Origin header is https://.
-// The edge overwrites x-forwarded-proto, so trusting it cannot be spoofed;
-// take the last element because overwrite-style proxies emit a single value
-// while append-style chains put the client-supplied value first.
-function effectiveRequestUrl(request: Request): URL {
-  const url = new URL(request.url);
-  const forwarded = request.headers.get("x-forwarded-proto")?.split(",").pop()?.trim().toLowerCase();
-  if (forwarded === "https" || forwarded === "http") url.protocol = `${forwarded}:`;
-  return url;
-}
+import { effectiveRequestUrl, readForm, safeReturnTo, validateMutation } from "./form";
 
 export function serveSettingsPage(request: Request): Response {
   const url = effectiveRequestUrl(request);
@@ -80,47 +67,6 @@ export async function serveResetPreferences(request: Request): Promise<Response>
   return redirectWithCookies(request, returnTo, resetPreferenceCookies(effectiveRequestUrl(request).protocol === "https:"));
 }
 
-function validateMutation(request: Request): Response | undefined {
-  const url = effectiveRequestUrl(request);
-  // Browsers force-set Sec-Fetch-Site and page JS cannot forge it. Some
-  // privacy extensions and sandboxed contexts send Origin: null; those are
-  // accepted only when the browser still reports the request as same-origin.
-  const origin = request.headers.get("origin");
-  const fetchSite = request.headers.get("sec-fetch-site");
-  const sameOrigin = origin === url.origin
-    || ((origin === null || origin === "null") && fetchSite === "same-origin");
-  if (!sameOrigin || fetchSite === "cross-site") {
-    return new Response("Cross-site preference update rejected", { status: 403 });
-  }
-  if (!(request.headers.get("content-type") ?? "").toLowerCase().startsWith("application/x-www-form-urlencoded")) {
-    return new Response("Unsupported content type", { status: 415 });
-  }
-  const length = Number(request.headers.get("content-length"));
-  if (Number.isFinite(length) && length > MAX_BODY_BYTES) return new Response("Request body too large", { status: 413 });
-  return undefined;
-}
-
-async function readForm(request: Request): Promise<URLSearchParams | Response> {
-  if (!request.body) return new URLSearchParams();
-  const reader = request.body.getReader();
-  const decoder = new TextDecoder();
-  let body = "";
-  let bytesRead = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      bytesRead += value.byteLength;
-      if (bytesRead > MAX_BODY_BYTES) return new Response("Request body too large", { status: 413 });
-      body += decoder.decode(value, { stream: true });
-    }
-    body += decoder.decode();
-    return new URLSearchParams(body);
-  } finally {
-    await reader.cancel();
-  }
-}
-
 function redirectWithCookies(request: Request, returnTo: string, cookies: string[]): Response {
   const requestUrl = effectiveRequestUrl(request);
   const target = new URL(returnTo, requestUrl);
@@ -134,19 +80,9 @@ function redirectWithCookies(request: Request, returnTo: string, cookies: string
   return new Response(null, { status: 303, headers });
 }
 
-function safeReturnTo(value: string | null, requestUrl: URL): string | undefined {
-  if (!value || !value.startsWith("/") || value.startsWith("//")) return undefined;
-  try {
-    const target = new URL(value, requestUrl);
-    return target.origin === requestUrl.origin ? `${target.pathname}${target.search}${target.hash}` : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function settingsHtml(body: string): Response {
+export function settingsHtml(body: string, status = 200): Response {
   return new Response(body, {
-    status: 200,
+    status,
     headers: {
       "content-type": "text/html; charset=utf-8",
       "content-security-policy": "default-src 'self'; img-src 'self' data:; media-src 'self' blob: https://video.twimg.com; script-src 'self' 'unsafe-hashes' 'sha256-/Z4pjjEaN4JuXiqMBajQpiZZINsH7QgIOYHQmRoj740='; worker-src 'self' blob:; connect-src 'self' https://video.twimg.com; style-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",

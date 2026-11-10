@@ -1,14 +1,9 @@
-import { parseSessions } from "../src/session";
+import { loadSessionPool } from "../src/session-pool";
 import { metricsSink } from "../src/x/metrics-sink";
 import { sessionPoolHealth } from "../src/x/rate-limit";
 
-export const onRequestGet: PagesFunction<Env> = async ({ env }) => {
-  let sessions;
-  try {
-    sessions = parseSessions(env.NITTER_SESSIONS ?? "");
-  } catch {
-    sessions = [];
-  }
+export const onRequestGet: PagesFunction<Env> = async ({ env, request }) => {
+  const sessions = await loadSessionPool(env, request);
   const sink = metricsSink();
   let report;
   try {

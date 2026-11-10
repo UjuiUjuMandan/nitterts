@@ -81,6 +81,7 @@ export function renderSettingsPage(preferences: PagePreferences, returnTo = "/se
             <p class="bookmark-note">Save this URL to restore your preferences (?prefs works on all pages)</p>
             <pre class="prefs-code">${escapeAttribute(prefsUrl)}</pre>
             <p class="bookmark-note">You can override preferences with query parameters (e.g. <code>?hlsPlayback=on</code>). These overrides aren't saved to cookies, and links won't retain the parameters. Intended for configuring RSS feeds and other cookieless environments. Hover over a preference to see its name.</p>
+            <p class="bookmark-note">Want to keep this instance fast? <a href="/settings/sessions">Donate an X session</a> or review the live session pool.</p>
             <h4 class="note">Preferences are stored client-side using cookies without any personal information.</h4>
             <button class="pref-submit" type="submit">Save preferences</button>
           </form>

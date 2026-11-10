@@ -16,5 +16,10 @@
     "bindings": [
       { "name": "HEALTH_METRICS", "class_name": "HealthMetrics", "script_name": "nitterts-health" }
     ]
-  }
+  },
+  // Optional: visitor session donations (/settings/sessions). Create with:
+  //   npx wrangler kv namespace create SESSION_STORE
+  // then uncomment and paste the printed id. Without the binding the instance
+  // keeps serving operator sessions from the NITTER_SESSIONS secret only.
+  // "kv_namespaces": [{ "binding": "SESSION_STORE", "id": "<namespace-id>" }]
 }

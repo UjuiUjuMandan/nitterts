@@ -2,6 +2,7 @@ import { renderListPage } from "../render/list";
 import { renderErrorPage, requestPath } from "../render/profile";
 import { renderListRss } from "../render/rss";
 import { preferencesFromRequest } from "../preferences";
+import { loadSessionPool } from "../session-pool";
 import { XApiError } from "../x/client";
 import { fetchListById, fetchListBySlug, fetchListMembers, fetchListTimeline, ListNotFoundError } from "../x/list";
 import { withCookieSession } from "../x/sessions";
@@ -16,8 +17,9 @@ export async function serveListPage(
   if (!/^\d{1,20}$/.test(id)) return html(renderErrorPage("Invalid list ID", 400, requestPath(request)), 400);
   const cursor = new URL(request.url).searchParams.get("cursor") || undefined;
   try {
+    const sessions = await loadSessionPool(env, request);
     if (tab === "members") {
-      const { list, members } = await withCookieSession(env.NITTER_SESSIONS, async (session) => {
+      const { list, members } = await withCookieSession(sessions, async (session) => {
         const [list, members] = await Promise.all([
           fetchListById(id, session),
           fetchListMembers(id, session, cursor),
@@ -26,7 +28,7 @@ export async function serveListPage(
       });
       return html(renderListPage(list, tab, undefined, members, preferences, cursor), 200);
     }
-    const { list, timeline } = await withCookieSession(env.NITTER_SESSIONS, async (session) => {
+    const { list, timeline } = await withCookieSession(sessions, async (session) => {
       const [list, timeline] = await Promise.all([
         fetchListById(id, session),
         fetchListTimeline(id, session, cursor),
@@ -44,7 +46,7 @@ export async function serveListSlugRedirect(request: Request, env: Env, username
     return html(renderErrorPage("Invalid list", 400, requestPath(request)), 400);
   }
   try {
-    const list = await withCookieSession(env.NITTER_SESSIONS, (session) => fetchListBySlug(username, slug, session));
+    const list = await withCookieSession(await loadSessionPool(env, request), (session) => fetchListBySlug(username, slug, session));
     const target = new URL(`/i/lists/${encodeURIComponent(list.id)}`, request.url);
     const cursor = new URL(request.url).searchParams.get("cursor");
     if (cursor) target.searchParams.set("cursor", cursor);
@@ -57,7 +59,7 @@ export async function serveListSlugRedirect(request: Request, env: Env, username
 export async function serveListRss(request: Request, env: Env, id: string): Promise<Response> {
   if (!/^\d{1,20}$/.test(id)) return html(renderErrorPage("Invalid list ID", 400, requestPath(request)), 400);
   try {
-    const { list, timeline } = await withCookieSession(env.NITTER_SESSIONS, async (session) => {
+    const { list, timeline } = await withCookieSession(await loadSessionPool(env, request), async (session) => {
       const [list, timeline] = await Promise.all([
         fetchListById(id, session),
         fetchListTimeline(id, session),
@@ -80,7 +82,7 @@ export async function serveListSlugRssRedirect(request: Request, env: Env, usern
     return html(renderErrorPage("Invalid list", 400, requestPath(request)), 400);
   }
   try {
-    const list = await withCookieSession(env.NITTER_SESSIONS, (session) => fetchListBySlug(username, slug, session));
+    const list = await withCookieSession(await loadSessionPool(env, request), (session) => fetchListBySlug(username, slug, session));
     const target = new URL(`/i/lists/${encodeURIComponent(list.id)}/rss`, request.url);
     const cursor = new URL(request.url).searchParams.get("cursor");
     if (cursor) target.searchParams.set("cursor", cursor);

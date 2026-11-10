@@ -1,13 +1,19 @@
-import { parseSessions } from "../session";
+import type { CookieSession } from "../session";
 import { XApiError } from "./client";
 
 const RETRYABLE_SESSION_STATUSES = new Set([401, 403, 429]);
 
+// Runs an action against the pool in order; a 401/403/429 from X moves on to
+// the next session, anything else aborts. The pool comes from
+// loadSessionPool (operator secret + visitor donations).
 export async function withCookieSession<T>(
-  jsonl: string,
-  action: (session: ReturnType<typeof parseSessions>[number]) => Promise<T>,
+  sessions: CookieSession[],
+  action: (session: CookieSession) => Promise<T>,
 ): Promise<T> {
-  const sessions = parseSessions(jsonl);
+  if (sessions.length === 0) {
+    throw new Error("No cookie sessions configured");
+  }
+
   let lastError: unknown;
 
   for (const session of sessions) {

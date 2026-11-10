@@ -1,3 +1,4 @@
+import { loadSessionPool } from "../../../src/session-pool";
 import { fetchProfile, XApiError } from "../../../src/x/client";
 import { ProfileNotFoundError } from "../../../src/x/profile";
 import { withCookieSession } from "../../../src/x/sessions";
@@ -9,7 +10,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   }
 
   try {
-    const profile = await withCookieSession(context.env.NITTER_SESSIONS, (session) =>
+    const profile = await withCookieSession(await loadSessionPool(context.env, context.request), (session) =>
       fetchProfile(username, session),
     );
 

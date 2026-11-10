@@ -1,5 +1,6 @@
 import { renderErrorPage, renderProfilePage, requestPath } from "../render/profile";
 import { MEDIA_VIEWS, preferencesFromRequest, type MediaView } from "../preferences";
+import { loadSessionPool } from "../session-pool";
 import { fetchProfile, XApiError } from "../x/client";
 import { ProfileNotFoundError } from "../x/profile";
 import { withCookieSession } from "../x/sessions";
@@ -24,8 +25,9 @@ export async function serveProfilePage(
     ? requestedView as MediaView
     : preferences.mediaView;
   try {
+    const sessions = await loadSessionPool(env, request);
     const { profile, timeline, photos } = await withCookieSession(
-      env.NITTER_SESSIONS,
+      sessions,
       async (session) => {
         const fetchedProfile = await fetchProfile(username, session);
         const profile = fetchedProfile.suspended
@@ -52,7 +54,7 @@ export async function serveProfilePage(
         return { profile, timeline, photos };
       },
     );
-    const basedIn = profile.suspended ? "" : (await fetchOptionalAccountInfo(env.NITTER_SESSIONS, username))?.basedIn ?? "";
+    const basedIn = profile.suspended ? "" : (await fetchOptionalAccountInfo(sessions, username))?.basedIn ?? "";
     return html(renderProfilePage({ ...profile, basedIn }, timeline, tab, photos, preferences, cursor, mediaView), 200);
   } catch (error) {
     const notFound = error instanceof ProfileNotFoundError;

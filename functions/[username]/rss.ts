@@ -1,5 +1,6 @@
 import { renderErrorPage, requestPath } from "../../src/render/profile";
 import { renderTimelineRss } from "../../src/render/rss";
+import { loadSessionPool } from "../../src/session-pool";
 import { fetchProfile, XApiError } from "../../src/x/client";
 import { ProfileNotFoundError } from "../../src/x/profile";
 import { withCookieSession } from "../../src/x/sessions";
@@ -16,7 +17,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
   try {
     const { profile, timeline } = await withCookieSession(
-      context.env.NITTER_SESSIONS,
+      await loadSessionPool(context.env, context.request),
       async (session) => {
         const profile = await fetchProfile(username, session);
         if (profile.suspended || profile.protected) return { profile, timeline: { tweets: [] } };
