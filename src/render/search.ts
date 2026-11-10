@@ -62,7 +62,7 @@ export function renderSearchPage(
   const items = search.kind === "users"
     ? results?.users?.map((user) => renderUserResult(user, preferences)).join("") ?? ""
     : search.kind === "lists"
-      ? results?.lists?.map(renderListResult).join("") ?? ""
+      ? results?.lists?.map((result) => renderListResult(result, preferences)).join("") ?? ""
       : timeline?.tweets.map((tweet) => renderTweet(tweet, false, preferences)).join("") ?? "";
   const body = profile?.suspended
     ? '<div class="timeline-header timeline-message"><h2>This account is suspended.</h2></div>'
@@ -84,8 +84,8 @@ export function renderSearchPage(
   const content = `<section class="timeline-container search-results">${contentBody}</section>`;
   const main = profile
     ? `<main class="profile-tabs">
-        ${profile.banner && !preferences.hideBanner ? `<div class="profile-banner"><a href="${escapeAttribute(mediaProxyUrl(profile.banner))}" target="_blank" rel="noopener"><img src="${escapeAttribute(mediaProxyUrl(profile.banner))}" alt=""></a></div>` : ""}
-        <aside class="profile-tab${preferences.stickyProfile ? " sticky" : ""}">${renderProfileCard(profile, preferences)}${renderPhotoRail(profile, photos)}</aside>
+        ${profile.banner && !preferences.hideBanner ? `<div class="profile-banner"><a href="${escapeAttribute(mediaProxyUrl(profile.banner, preferences.proxyVideos))}" target="_blank" rel="noopener"><img src="${escapeAttribute(mediaProxyUrl(profile.banner, preferences.proxyVideos))}" alt=""></a></div>` : ""}
+        <aside class="profile-tab${preferences.stickyProfile ? " sticky" : ""}">${renderProfileCard(profile, preferences)}${renderPhotoRail(profile, photos, preferences)}</aside>
         ${content}
       </main>`
     : `<main class="timeline-container search-results search-page">${contentBody}</main>`;
@@ -205,18 +205,18 @@ export function xSearchUrl(search: SearchPage): string {
   return `https://x.com/search?${params}`;
 }
 
-function renderListResult(result: SearchList): string {
+function renderListResult(result: SearchList, preferences: PagePreferences): string {
   const href = `/i/lists/${encodeURIComponent(result.id)}`;
   const mentioned = mentionedUsername(result.followersContext);
   const context = result.followersContext
     ? `${result.facepiles.map((url, index) => {
-        const image = `<img class="list-facepile" src="${escapeAttribute(mediaProxyUrl(url))}" alt="" loading="lazy">`;
+        const image = `<img class="list-facepile" src="${escapeAttribute(mediaProxyUrl(url, preferences.proxyVideos))}" alt="" loading="lazy">`;
         return index === 0 && mentioned ? `<a class="facepile-link" href="/${encodeURIComponent(mentioned)}">${image}</a>` : image;
       }).join("")}${renderMentionedText(result.followersContext)}`
-    : `${result.owner.avatar ? `<a class="facepile-link" href="/${encodeURIComponent(result.owner.username)}"><img class="list-facepile" src="${escapeAttribute(mediaProxyUrl(result.owner.avatar))}" alt="" loading="lazy"></a>` : ""}<a class="fullname" href="/${encodeURIComponent(result.owner.username)}">${escapeHtml(result.owner.name)}</a><a class="username" href="/${encodeURIComponent(result.owner.username)}">@${escapeHtml(result.owner.username)}</a>`;
+    : `${result.owner.avatar ? `<a class="facepile-link" href="/${encodeURIComponent(result.owner.username)}"><img class="list-facepile" src="${escapeAttribute(mediaProxyUrl(result.owner.avatar, preferences.proxyVideos))}" alt="" loading="lazy"></a>` : ""}<a class="fullname" href="/${encodeURIComponent(result.owner.username)}">${escapeHtml(result.owner.name)}</a><a class="username" href="/${encodeURIComponent(result.owner.username)}">@${escapeHtml(result.owner.username)}</a>`;
   return `<div class="timeline-item list-result">
     <a class="tweet-link" href="${href}" aria-label="View list"></a>
-    <a class="list-result-banner" href="${href}">${result.banner ? `<img src="${escapeAttribute(mediaProxyUrl(result.banner))}" alt="" loading="lazy">` : ""}</a>
+    <a class="list-result-banner" href="${href}">${result.banner ? `<img src="${escapeAttribute(mediaProxyUrl(result.banner, preferences.proxyVideos))}" alt="" loading="lazy">` : ""}</a>
     <div class="list-result-body">
       <div class="list-result-title fullname-and-username"><a class="list-name fullname" href="${href}">${escapeHtml(result.name)}</a><span class="list-members">· ${result.members.toLocaleString("en-US")} members</span></div>
       <div class="list-result-context">${context}</div>

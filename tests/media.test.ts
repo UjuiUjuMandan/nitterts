@@ -77,6 +77,26 @@ describe("isAllowedMediaUrl", () => {
 });
 
 describe("upstream media URL shapes", () => {
+  it("bypasses the proxy only for allowed HTTPS media, including relative photos", () => {
+    for (const url of ["https://pbs.twimg.com/avatar.jpg", "https://abs.twimg.com/image.png", "https://video.twimg.com/preview.jpg"]) {
+      expect(mediaProxyUrl(url, false)).toBe(url);
+      expect(mediaProxyUrl(url, true)).toMatch(/^\/(pic|video)\//);
+    }
+    expect(mediaProxyUrl("media/photo.jpg:thumb", false)).toBe("https://pbs.twimg.com/media/photo.jpg:thumb");
+    expect(mediaProxyUrl("pbs.twimg.com/media/photo.jpg", false)).toBe("https://pbs.twimg.com/media/photo.jpg");
+    for (const url of ["javascript:alert(1)", "https://example.com/a.jpg", "http://pbs.twimg.com/a.jpg"]) {
+      expect(mediaProxyUrl(url, false)).toMatch(/^\/pic\//);
+    }
+  });
+
+  it("sets original size on direct photo links without dropping format or duplicating name", () => {
+    expect(origPicUrl("media/photo?format=jpg&name=small", false))
+      .toBe("https://pbs.twimg.com/media/photo?format=jpg&name=orig");
+    expect(origPicUrl("https://pbs.twimg.com/media/photo.jpg", false))
+      .toBe("https://pbs.twimg.com/media/photo.jpg?name=orig");
+    expect(origPicUrl("https://example.com/photo.jpg", false)).toMatch(/^\/pic\/orig\//);
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
     resetMediaSigner();

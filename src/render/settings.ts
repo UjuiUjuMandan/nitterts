@@ -18,7 +18,7 @@ const DISPLAY_LABELS: Partial<Record<PreferenceKey, string>> = {
 const MEDIA_LABELS: Partial<Record<PreferenceKey, string>> = {
   mp4Playback: "Enable mp4 video playback (only for gifs)",
   hlsPlayback: "Enable HLS video streaming (requires JavaScript)",
-  proxyVideos: "Proxy video streaming through the server (might be slow)",
+  proxyVideos: "Proxy images and videos through the server (might be slow; disabling exposes your IP to X's media servers)",
   muteVideos: "Mute videos by default",
   autoplayGifs: "Autoplay gifs",
   compactGallery: "Use compact layout in gallery view",

@@ -35,6 +35,11 @@ describe("status reply sorting", () => {
       env: { NITTER_SESSIONS: "unused" },
     } as Parameters<typeof onRequestGet>[0]);
     expect(response.status).toBe(200);
+    const imagePolicy = response.headers.get("content-security-policy")!.split(";").find((directive) => directive.trim().startsWith("img-src"))!;
+    expect(imagePolicy).toContain("https://pbs.twimg.com");
+    expect(imagePolicy).toContain("https://abs.twimg.com");
+    expect(imagePolicy).toContain("https://video.twimg.com");
+    expect(imagePolicy).not.toMatch(/\shttps:(?:\s|$)/);
     expect(fetchConversation).toHaveBeenCalledWith("2", { kind: "cookie" }, "current", expected);
     expect(await response.text()).toContain(`class="reply-sort-option active" href="?sort=${expected}#r"`);
   });

@@ -1,17 +1,18 @@
 import { mediaProxyUrl } from "../media";
+import { DEFAULT_PREFERENCES } from "../preferences";
 import type { Profile } from "../x/profile";
 import type { ListDetail } from "../x/list";
 import type { Timeline, Tweet } from "../x/timeline";
 
 const GUID_CUTOFF = 2000000000000000000n;
 
-export function renderTimelineRss(profile: Profile, timeline: Timeline, origin: string): string {
+export function renderTimelineRss(profile: Profile, timeline: Timeline, origin: string, proxy = DEFAULT_PREFERENCES.proxyVideos): string {
   const handle = `@${profile.username}`;
   const title = xmlEscape(`${profile.name} / ${handle}`);
   const items = [timeline.pinned, ...timeline.tweets]
     .filter((tweet): tweet is Tweet => Boolean(tweet))
     .filter((tweet, index, all) => all.findIndex((item) => item.id === tweet.id) === index)
-    .map((tweet) => renderRssTweet(tweet, origin))
+    .map((tweet) => renderRssTweet(tweet, origin, proxy))
     .join("");
 
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -26,7 +27,7 @@ export function renderTimelineRss(profile: Profile, timeline: Timeline, origin: 
 ${profile.avatar ? `    <image>
       <title>${title}</title>
       <link>${xmlEscape(`${origin}/${profile.username}`)}</link>
-      <url>${xmlEscape(mediaAbsolute(profile.avatar, origin))}</url>
+      <url>${xmlEscape(mediaAbsolute(profile.avatar, origin, proxy))}</url>
       <width>128</width>
       <height>128</height>
     </image>
@@ -34,10 +35,10 @@ ${profile.avatar ? `    <image>
 </rss>`;
 }
 
-export function renderListRss(list: ListDetail, timeline: Timeline, origin: string): string {
+export function renderListRss(list: ListDetail, timeline: Timeline, origin: string, proxy = DEFAULT_PREFERENCES.proxyVideos): string {
   const path = `/i/lists/${encodeURIComponent(list.id)}`;
   const title = xmlEscape(`${list.name} / @${list.owner.username}`);
-  const items = timeline.tweets.map((tweet) => renderRssTweet(tweet, origin)).join("");
+  const items = timeline.tweets.map((tweet) => renderRssTweet(tweet, origin, proxy)).join("");
   return `<?xml version="1.0" encoding="UTF-8"?>
 <rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/elements/1.1/" version="2.0">
   <channel>
@@ -51,7 +52,7 @@ ${items}  </channel>
 </rss>`;
 }
 
-function renderRssTweet(source: Tweet, origin: string): string {
+function renderRssTweet(source: Tweet, origin: string, proxy: boolean): string {
   const tweet = source.retweet ?? source;
   const retweet = source.retweet ? source.author.username : "";
   const link = `/${encodeURIComponent(tweet.author.username)}/status/${tweet.id}`;
@@ -61,7 +62,7 @@ function renderRssTweet(source: Tweet, origin: string): string {
   return `      <item>
         <title>${rssTitle(tweet, retweet)}</title>
         <dc:creator>@${xmlEscape(tweet.author.username)}</dc:creator>
-        <description><![CDATA[<p>${cdataSafe(text).replaceAll("\n", "<br>\n")}</p>${rssMedia(tweet, origin)}${rssQuote(tweet, origin)}]]></description>
+        <description><![CDATA[<p>${cdataSafe(text).replaceAll("\n", "<br>\n")}</p>${rssMedia(tweet, origin, proxy)}${rssQuote(tweet, origin, proxy)}]]></description>
         <pubDate>${rfc822(tweet.createdAt)}</pubDate>
         <guid${globalGuid ? ' isPermaLink="false"' : ""}>${globalGuid ? tweet.id : xmlEscape(origin + link)}</guid>
         <link>${xmlEscape(origin + link)}</link>
@@ -77,21 +78,21 @@ function rssTitle(tweet: Tweet, retweet: string): string {
   return xmlEscape(prefix + collapse(tweet.text).slice(0, 64));
 }
 
-function rssMedia(tweet: Tweet, origin: string): string {
+function rssMedia(tweet: Tweet, origin: string, proxy: boolean): string {
   if (!tweet.media.length) return "";
   return tweet.media
     .map((item) => {
       if (item.kind === "photo" && item.url) {
-        return `<img src="${mediaAbsolute(item.url, origin)}" style="max-width:250px;" />`;
+        return `<img src="${xmlEscape(mediaAbsolute(item.url, origin, proxy))}" style="max-width:250px;" />`;
       }
       const preview = item.preview || item.url;
       if (!preview) return "";
-      return `<a href="${xmlEscape(origin)}/${encodeURIComponent(tweet.author.username)}/status/${tweet.id}"><br>Video<br><img src="${mediaAbsolute(preview, origin)}" style="max-width:250px;" /></a>`;
+      return `<a href="${xmlEscape(origin)}/${encodeURIComponent(tweet.author.username)}/status/${tweet.id}"><br>Video<br><img src="${xmlEscape(mediaAbsolute(preview, origin, proxy))}" style="max-width:250px;" /></a>`;
     })
     .join("\n");
 }
 
-function rssQuote(tweet: Tweet, origin: string): string {
+function rssQuote(tweet: Tweet, origin: string, proxy: boolean): string {
   if (!tweet.quote) return "";
   const quote = tweet.quote;
   const quoteLink = `${origin}/${encodeURIComponent(quote.author.username)}/status/${quote.id}`;
@@ -100,7 +101,7 @@ function rssQuote(tweet: Tweet, origin: string): string {
     ? quote.media
         .map((item) => {
           const image = item.kind === "photo" ? item.url : item.preview;
-          return image ? `<img src="${mediaAbsolute(image, origin)}" style="max-width:250px;" />` : "";
+           return image ? `<img src="${xmlEscape(mediaAbsolute(image, origin, proxy))}" style="max-width:250px;" />` : "";
         })
         .join("")
     : "";
@@ -115,8 +116,8 @@ function cdataSafe(value: string): string {
   return value.replaceAll("]]>", "]]]]><![CDATA[>");
 }
 
-function mediaAbsolute(url: string, origin: string): string {
-  return `${origin}${mediaProxyUrl(url)}`;
+function mediaAbsolute(url: string, origin: string, proxy: boolean): string {
+  return new URL(mediaProxyUrl(url, proxy), origin).toString();
 }
 
 function rfc822(value: string): string {

@@ -38,7 +38,7 @@ export function renderListPage(
   ${renderNavbar(base, `${base}${tab === "members" ? "/members" : ""}${currentCursor ? `?cursor=${encodeURIComponent(currentCursor)}` : ""}`)}
   <div class="container">
     <main class="timeline-container list-page">
-      ${list.banner && !preferences.hideBanner ? `<div class="timeline-banner"><a href="${escapeAttribute(mediaProxyUrl(list.banner))}" target="_blank" rel="noopener"><img src="${escapeAttribute(mediaProxyUrl(list.banner))}" alt=""></a></div>` : ""}
+      ${list.banner && !preferences.hideBanner ? `<div class="timeline-banner"><a href="${escapeAttribute(mediaProxyUrl(list.banner, preferences.proxyVideos))}" target="_blank" rel="noopener"><img src="${escapeAttribute(mediaProxyUrl(list.banner, preferences.proxyVideos))}" alt=""></a></div>` : ""}
       <div class="timeline-header list-header">&quot;${escapeHtml(list.name)}&quot; by <a href="/${encodeURIComponent(list.owner.username)}">@${escapeHtml(list.owner.username)}</a>${list.description ? `<div class="timeline-description">${escapeHtml(list.description)}</div>` : ""}</div>
       <ul class="tab">
         <li class="tab-item${tab === "tweets" ? " active" : ""}"><a href="${base}">Tweets</a></li>

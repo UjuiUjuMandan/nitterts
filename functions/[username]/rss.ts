@@ -1,6 +1,7 @@
 import { renderErrorPage, requestPath } from "../../src/render/profile";
 import { renderTimelineRss } from "../../src/render/rss";
 import { loadSessionPool } from "../../src/session-pool";
+import { preferencesFromRequest } from "../../src/preferences";
 import { fetchProfile, XApiError } from "../../src/x/client";
 import { ProfileNotFoundError } from "../../src/x/profile";
 import { AllSessionsLimitedError, withCookieSession } from "../../src/x/sessions";
@@ -28,11 +29,12 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     const origin = new URL(context.request.url).origin;
     const headers: Record<string, string> = {
       "content-type": "application/rss+xml; charset=utf-8",
-      "cache-control": "public, max-age=600",
+      "cache-control": "private, no-store",
+      vary: "Cookie",
     };
     const newest = timeline.tweets[0]?.id;
     if (newest) headers["min-id"] = newest;
-    return new Response(renderTimelineRss(profile, timeline, origin), { status: 200, headers });
+    return new Response(renderTimelineRss(profile, timeline, origin, preferencesFromRequest(context.request).proxyVideos), { status: 200, headers });
   } catch (error) {
     const notFound = error instanceof ProfileNotFoundError;
     const status = notFound ? 404 : error instanceof XApiError ? 502 : error instanceof AllSessionsLimitedError ? 503 : 500;

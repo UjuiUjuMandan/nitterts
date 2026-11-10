@@ -68,10 +68,11 @@ export async function serveListRss(request: Request, env: Env, id: string): Prom
     });
     const headers: Record<string, string> = {
       "content-type": "application/rss+xml; charset=utf-8",
-      "cache-control": "public, max-age=600",
+      "cache-control": "private, no-store",
+      vary: "Cookie",
     };
     if (timeline.tweets[0]?.id) headers["min-id"] = timeline.tweets[0].id;
-    return new Response(renderListRss(list, timeline, new URL(request.url).origin), { status: 200, headers });
+    return new Response(renderListRss(list, timeline, new URL(request.url).origin, preferencesFromRequest(request).proxyVideos), { status: 200, headers });
   } catch (error) {
     return listError(error, { id, kind: "rss" }, request);
   }
@@ -113,7 +114,7 @@ function html(body: string, status: number, headers: Record<string, string> = {}
     status,
     headers: {
       "content-type": "text/html; charset=utf-8",
-      "content-security-policy": "default-src 'self'; img-src 'self' data:; media-src 'self' blob: https://video.twimg.com; script-src 'self' 'unsafe-hashes' 'sha256-/Z4pjjEaN4JuXiqMBajQpiZZINsH7QgIOYHQmRoj740='; worker-src 'self' blob:; connect-src 'self' https://video.twimg.com; style-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
+      "content-security-policy": "default-src 'self'; img-src 'self' data: https://pbs.twimg.com https://abs.twimg.com https://video.twimg.com; media-src 'self' blob: https://video.twimg.com; script-src 'self' 'unsafe-hashes' 'sha256-/Z4pjjEaN4JuXiqMBajQpiZZINsH7QgIOYHQmRoj740='; worker-src 'self' blob:; connect-src 'self' https://video.twimg.com; style-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'",
       "referrer-policy": "no-referrer",
       "x-content-type-options": "nosniff",
       "cache-control": "private, no-store",

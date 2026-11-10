@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { formatDate, renderProfilePage, renderTweet } from "../src/render/profile";
+import { DEFAULT_PREFERENCES } from "../src/preferences";
 
 describe("renderProfilePage", () => {
-  it("escapes profile and tweet content and proxies images", () => {
+  it.each([false, true])("escapes content and respects image proxy choice (%s)", (proxyVideos) => {
     const html = renderProfilePage(
       {
         id: "1",
@@ -53,12 +54,14 @@ describe("renderProfilePage", () => {
           },
         ],
       },
+      "tweets", [], { ...DEFAULT_PREFERENCES, proxyVideos },
     );
 
     expect(html).not.toContain("<script>alert(1)</script>");
     expect(html).not.toContain("<img src=x");
     expect(html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
-    expect(html).toContain("/pic/https%3A%2F%2Fpbs.twimg.com%2Falice.jpg");
+    expect(html).toContain(proxyVideos ? "/pic/https%3A%2F%2Fpbs.twimg.com%2Falice.jpg" : 'src="https://pbs.twimg.com/alice.jpg"');
+    expect(html).toContain(proxyVideos ? "/pic/https%3A%2F%2Fpbs.twimg.com%2Fbanner.jpg" : 'src="https://pbs.twimg.com/banner.jpg"');
     expect(html).toContain('class="profile-tabs"');
     expect(html).toContain('class="profile-card-avatar"');
     expect(html).toContain('class="timeline-item tweet"');
@@ -101,11 +104,12 @@ describe("renderProfilePage", () => {
       { tweets: [] },
       "tweets",
       [{ url: "https://pbs.twimg.com/media/a.jpg", tweetId: "10" }],
+      { ...DEFAULT_PREFERENCES, proxyVideos },
     );
     expect(withRail).toContain('class="photo-rail-card"');
     expect(withRail).toContain("2 Photos and videos");
     expect(withRail).toContain("/alice/status/10#m");
-    expect(withRail).toContain("pic/media%2Fa.jpg%3Athumb");
+    expect(withRail).toContain(proxyVideos ? "pic/media%2Fa.jpg%3Athumb" : "https://pbs.twimg.com/media/a.jpg:thumb");
 
     const verified = renderProfilePage(
       {

@@ -23,7 +23,7 @@ export function renderAboutPage(profile: Profile, preferences: PagePreferences =
   <div class="container">
     <main class="about-account">
       <header class="about-account-header">
-        ${profile.avatar ? `<a class="about-account-avatar" href="${base}"><img class="avatar${preferences.squareAvatars ? "" : " round"}" src="${escapeAttribute(mediaProxyUrl(profile.avatar))}" alt=""></a>` : ""}
+        ${profile.avatar ? `<a class="about-account-avatar" href="${base}"><img class="avatar${preferences.squareAvatars ? "" : " round"}" src="${escapeAttribute(mediaProxyUrl(profile.avatar, preferences.proxyVideos))}" alt=""></a>` : ""}
         <div class="about-account-name"><a class="profile-card-fullname" href="${base}">${escapeHtml(profile.name)}</a></div><a class="profile-card-username" href="${base}">@${escapeHtml(profile.username)}</a>
       </header>
       <div class="about-account-body">

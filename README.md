@@ -24,7 +24,7 @@ instance-level defaults; user cookies still win.
 | `NITTER_REPLACE_TWITTER` | `nitterts.pages.dev` | Rewrite target for twitter.com links in tweets |
 | `NITTER_REPLACE_YOUTUBE` | empty | Rewrite target for YouTube links (empty disables) |
 | `NITTER_REPLACE_REDDIT` | empty | Rewrite target for Reddit links (empty disables) |
-| `NITTER_PROXY_VIDEOS` | `false` | Proxy videos through this instance (`false` serves video.twimg.com directly) |
+| `NITTER_PROXY_VIDEOS` | `false` | Proxy images and videos through this instance; `false` loads media directly from X's twimg servers, exposing the visitor's IP to them. Visitors can override this in settings. |
 | `NITTER_HLS_PLAYBACK` | `false` | Enable HLS adaptive playback by default |
 | `NITTER_THEME` | `Auto` | Default theme; see the preferences page for the list |
 | `NITTER_DEBUG` | unset | Set to `true` to expose the `/.sessions` debug endpoint |

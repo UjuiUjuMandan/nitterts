@@ -64,8 +64,14 @@ export function picUrl(value: string): string {
   return `/pic/${encodeURIComponent(value)}`;
 }
 
-// Original-size links: /pic/orig/<encoded>; the route appends name=orig.
-export function origPicUrl(value: string): string {
+// Original-size links: /pic/orig/<encoded>, or a direct URL with name=orig.
+export function origPicUrl(value: string, proxy = true): string {
+  if (!proxy) {
+    const url = new URL(normalizePicUrl(value));
+    if (!isAllowedMediaUrl(url.toString())) return origPicUrl(value);
+    url.searchParams.set("name", "orig");
+    return url.toString();
+  }
   const stripped = value.startsWith(PBS_PREFIX + "media/") ? value.slice(PBS_PREFIX.length) : value;
   return `/pic/orig/${encodeURIComponent(stripped)}`;
 }
@@ -75,7 +81,13 @@ export function videoUrl(value: string): string {
   return `/video/${mediaSignature(value)}/${encodeURIComponent(value)}`;
 }
 
-export function mediaProxyUrl(value: string): string {
+export function mediaProxyUrl(value: string, proxy = true): string {
+  // Only restore relative twimg paths; never reinterpret an explicit non-HTTPS
+  // scheme as an image path. Invalid destinations stay behind proxy validation.
+  if (!proxy && value && (!/^[a-z][a-z0-9+.-]*:/i.test(value) || value.startsWith("https://"))) {
+    const direct = normalizePicUrl(value);
+    if (isAllowedMediaUrl(direct)) return direct;
+  }
   try {
     const host = new URL(value).hostname;
     if (host === "video.twimg.com") return videoUrl(value);

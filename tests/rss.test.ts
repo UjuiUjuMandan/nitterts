@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { renderTimelineRss } from "../src/render/rss";
+import { renderTweet } from "../src/render/profile";
+import { DEFAULT_PREFERENCES } from "../src/preferences";
 
 const profile = {
   id: "1",
@@ -52,12 +54,34 @@ function tweet(overrides = {}) {
 }
 
 describe("renderTimelineRss", () => {
-  it("renders valid channel with escaped titles and CDATA descriptions", () => {
-    const xml = renderTimelineRss(profile, { tweets: [tweet()] }, "https://nitter.example");
+  it.each([false, true])("renders tweet photos, original links and video posters with proxy=%s", (proxyVideos) => {
+    const post = tweet({ media: [
+      { kind: "photo", url: "https://pbs.twimg.com/media/photo.jpg", preview: "", alt: "photo" },
+      { kind: "video", url: "https://video.twimg.com/clip.mp4", preview: "https://pbs.twimg.com/poster.jpg", alt: "video" },
+    ], quote: tweet({ id: "123", author: { ...author, avatar: "https://pbs.twimg.com/quoted.jpg" } }) });
+    const html = renderTweet(post, false, { ...DEFAULT_PREFERENCES, proxyVideos, mp4Playback: true });
+    if (proxyVideos) {
+      expect(html).toContain('/pic/orig/media%2Fphoto.jpg');
+      expect(html).toContain('poster="/pic/https%3A%2F%2Fpbs.twimg.com%2Fposter.jpg"');
+      expect(html).toContain('/pic/https%3A%2F%2Fpbs.twimg.com%2Fquoted.jpg');
+      expect(html).toContain('src="/video/');
+    } else {
+      expect(html).toContain('href="https://pbs.twimg.com/media/photo.jpg?name=orig"');
+      expect(html).toContain('poster="https://pbs.twimg.com/poster.jpg"');
+      expect(html).toContain('src="https://pbs.twimg.com/quoted.jpg"');
+      expect(html).toContain('src="https://video.twimg.com/clip.mp4"');
+      expect(html).not.toContain('/pic/');
+    }
+  });
+
+  it.each([false, true])("renders channel with image proxy choice (%s)", (proxy) => {
+    const xml = renderTimelineRss(profile, { tweets: [tweet()] }, "https://nitter.example", proxy);
     expect(xml).toContain('<?xml version="1.0" encoding="UTF-8"?>');
     expect(xml).toContain("<title>Alice &lt;&amp;&gt; / @alice</title>");
     expect(xml).toContain("<atom:link href=\"https://nitter.example/alice/rss\"");
-    expect(xml).toContain("https://nitter.example/pic/https%3A%2F%2Fpbs.twimg.com%2Falice.jpg");
+    expect(xml).toContain(proxy ? "https://nitter.example/pic/https%3A%2F%2Fpbs.twimg.com%2Falice.jpg" : "<url>https://pbs.twimg.com/alice.jpg</url>");
+    expect(xml).toContain(proxy ? "https://nitter.example/pic/media%2Fx.jpg" : 'src="https://pbs.twimg.com/media/x.jpg"');
+    expect(xml).not.toContain("https://nitter.examplehttps://");
     expect(xml).toContain("<guid isPermaLink=\"false\">2092329293158191570</guid>");
     expect(xml).toContain("Tue, 25 Aug 2026 17:45:00 GMT");
     expect(xml).toContain('<![CDATA[<p>hello &lt;rss&gt; &amp; friends</p>');
