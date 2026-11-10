@@ -45,11 +45,18 @@ function poolRow(entry: PoolSessionView): string {
   return `<tr><td>${escapeHtml(entry.label)}</td><td>${SOURCE_LABELS[entry.source]}</td><td>${visibility}</td><td>${STATUS_LABELS[entry.status]}</td><td>${escapeHtml(entry.createdYear)}</td></tr>`;
 }
 
+// The forms contain only floated buttons (global `button { float: right }`)
+// plus hidden inputs, which collapse them to zero height and make the next
+// in-flow block (the donate legend) paint underneath the buttons. Inline
+// overflow:auto establishes a block formatting context per form so it
+// contains its floats; style.css is generated from upstream sass, so this
+// stays in markup.
+const stewardFormStyle = ' style="overflow:auto"';
 function stewardRow(entry: PoolSessionView): string {
   const toggle = entry.visibility === "public"
-    ? `<form method="post" action="/settings/sessions"><input type="hidden" name="action" value="visibility"><input type="hidden" name="session" value="${escapeAttribute(entry.label)}"><input type="hidden" name="visibility" value="private"><button type="submit">Use for my requests only</button></form>`
-    : `<form method="post" action="/settings/sessions"><input type="hidden" name="action" value="visibility"><input type="hidden" name="session" value="${escapeAttribute(entry.label)}"><input type="hidden" name="visibility" value="public"><button type="submit">Use for all visitors</button></form>`;
-  const revoke = `<form method="post" action="/settings/sessions"><input type="hidden" name="action" value="revoke"><input type="hidden" name="session" value="${escapeAttribute(entry.label)}"><button type="submit">Remove</button></form>`;
+    ? `<form${stewardFormStyle} method="post" action="/settings/sessions"><input type="hidden" name="action" value="visibility"><input type="hidden" name="session" value="${escapeAttribute(entry.label)}"><input type="hidden" name="visibility" value="private"><button type="submit">Use for my requests only</button></form>`
+    : `<form${stewardFormStyle} method="post" action="/settings/sessions"><input type="hidden" name="action" value="visibility"><input type="hidden" name="session" value="${escapeAttribute(entry.label)}"><input type="hidden" name="visibility" value="public"><button type="submit">Use for all visitors</button></form>`;
+  const revoke = `<form${stewardFormStyle} method="post" action="/settings/sessions"><input type="hidden" name="action" value="revoke"><input type="hidden" name="session" value="${escapeAttribute(entry.label)}"><button type="submit">Remove</button></form>`;
   return `<div class="pref-group"><span>${escapeHtml(entry.label)}</span><span>${entry.visibility === "public" ? "public" : "private"}${entry.donatedAt ? `, donated ${escapeHtml(entry.donatedAt)}` : ""}</span>${toggle}${revoke}</div>`;
 }
 
