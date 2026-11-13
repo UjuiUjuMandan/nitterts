@@ -25,7 +25,7 @@ export const BLOCKED_ASNS: readonly number[] = [
   202662 // GCore
 ];
 
-const FORBIDDEN = new Response("Forbidden", {
+const forbidden = () => new Response("Forbidden", {
   status: 403,
   statusText: "Forbidden",
   headers: { "content-type": "text/plain" }
@@ -39,11 +39,11 @@ export function securityGuard(request: Request): Response | null {
   const cf = (request as Request & { cf?: { httpProtocol?: string; asn?: number } }).cf;
 
   if (cf?.httpProtocol && (BLOCKED_HTTP_PROTOCOLS as readonly string[]).includes(cf.httpProtocol)) {
-    return FORBIDDEN;
+    return forbidden();
   }
 
   if (cf?.asn && BLOCKED_ASNS.includes(cf.asn)) {
-    return FORBIDDEN;
+    return forbidden();
   }
 
   return null;
