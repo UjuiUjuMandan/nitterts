@@ -1,8 +1,11 @@
 import { installPreferenceDefaults, preferencesRedirect } from "../src/preferences";
 import { installMediaSigner } from "../src/media";
 import { installMetricsSink } from "../src/x/metrics-sink";
+import { securityGuard } from "../src/security";
 
 export const onRequest: PagesFunction<Env> = async (context) => {
+  const blocked = securityGuard(context.request);
+  if (blocked) return blocked;
   installPreferenceDefaults(context.env as Env & {
     NITTER_REPLACE_TWITTER?: string;
     NITTER_REPLACE_YOUTUBE?: string;
