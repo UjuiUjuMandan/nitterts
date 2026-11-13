@@ -4,7 +4,10 @@ import { installMetricsSink } from "../src/x/metrics-sink";
 import { securityGuard } from "../src/security";
 
 export const onRequest: PagesFunction<Env> = async (context) => {
-  const blocked = securityGuard(context.request);
+  const blocked = securityGuard(
+    context.request,
+    (context.env as Env & { STATUS_BEARER_TOKEN?: string }).STATUS_BEARER_TOKEN
+  );
   if (blocked) return blocked;
   installPreferenceDefaults(context.env as Env & {
     NITTER_REPLACE_TWITTER?: string;

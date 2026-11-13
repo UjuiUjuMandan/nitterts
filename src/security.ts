@@ -29,11 +29,34 @@ const forbidden = () => new Response("Forbidden", {
   headers: { "content-type": "text/plain" }
 });
 
+/** Constant-time string compare to avoid leaking the token by timing. */
+function tokensMatch(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+/**
+ * True when the request presents the expected status-monitor bearer token
+ * (sent as `Authorization: Bearer <t>` or `X-status-page-bearer: <t>`),
+ * exempting it from ASN blocking. Requires STATUS_BEARER_TOKEN to be set.
+ */
+function isStatusMonitor(request: Request, expectedToken: string | undefined): boolean {
+  if (!expectedToken) return false;
+  const auth = request.headers.get("authorization");
+  if (auth?.startsWith("Bearer ") && tokensMatch(auth.slice(7), expectedToken)) return true;
+  const alt = request.headers.get("x-status-page-bearer");
+  return alt !== null && tokensMatch(alt, expectedToken);
+}
+
 /**
  * Returns a 403 Response when the request violates a security rule,
  * or null when the request is allowed to proceed.
  */
-export function securityGuard(request: Request): Response | null {
+export function securityGuard(request: Request, statusBearerToken?: string): Response | null {
+  if (isStatusMonitor(request, statusBearerToken)) return null;
+
   const cf = (request as Request & { cf?: { httpProtocol?: string; asn?: number } }).cf;
 
   if (cf?.httpProtocol && (BLOCKED_HTTP_PROTOCOLS as readonly string[]).includes(cf.httpProtocol)) {
