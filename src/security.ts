@@ -13,16 +13,16 @@ export const BLOCKED_HTTP_PROTOCOLS = ["HTTP/1.0", "HTTP/1.1"] as const;
  * Typically hosting/VPN/proxy ranges used for scraping or abuse.
  */
 export const BLOCKED_ASNS: readonly number[] = [
-  132203, // Tencent
-  63949,  // Akamai (Linode)
-  24940,  // Hetzner
-  16276,  // OVH
-  45102,  // Alibaba
-  14618,  // AWS
-  212317, // Sia NanoMedia
-  9009,   // M247
-  54600,  // Clouvider
-  202662 // GCore
+  132203, // Tencent Building, Kejizhongyi Avenue
+  63949,  // Akamai Connected Cloud (Linode)
+  24940,  // Hetzner Online GmbH
+  16276,  // OVH SAS
+  45102,  // Alibaba (US) Technology Co., Ltd.
+  14618,  // Amazon.com, Inc. (AWS)
+  212317, // Hetzner Online GmbH
+  9009,   // M247 Europe SRL
+  54600,  // PEG TECH INC
+  202662  // Hytron Network Services
 ];
 
 const forbidden = () => new Response("Forbidden", {
