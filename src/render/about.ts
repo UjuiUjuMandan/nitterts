@@ -3,7 +3,7 @@ import { bodyClass, DEFAULT_PREFERENCES, type PagePreferences } from "../prefere
 import type { AccountInfo, Profile } from "../x/profile";
 import { escapeAttribute, escapeHtml, headScripts, renderNavbar, themeLink } from "./profile";
 
-export function renderAboutPage(profile: Profile, preferences: PagePreferences = { ...DEFAULT_PREFERENCES }, accountInfo?: AccountInfo): string {
+export function renderAboutPage(profile: Profile, preferences: PagePreferences = { ...DEFAULT_PREFERENCES }, accountInfo?: AccountInfo, enableRss = false): string {
   const base = `/${encodeURIComponent(profile.username)}`;
   const joined = monthYear(profile.joinedAt);
   const info = accountInfo;
@@ -19,7 +19,7 @@ export function renderAboutPage(profile: Profile, preferences: PagePreferences =
   <link rel="stylesheet" href="/css/style.css">${themeLink(preferences)}${headScripts(preferences)}
 </head>
 <body${bodyClass(preferences)}>
-  ${renderNavbar(base, `${base}/about`)}
+  ${renderNavbar(enableRss ? base : "", `${base}/about`)}
   <div class="container">
     <main class="about-account">
       <header class="about-account-header">

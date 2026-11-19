@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { renderAboutPage } from "../src/render/about";
 import { renderListPage } from "../src/render/list";
+import { renderProfilePage } from "../src/render/profile";
 import { renderListRss } from "../src/render/rss";
 import { ListNotFoundError, parseList, parseListMembers } from "../src/x/list";
 import { parseTimeline } from "../src/x/timeline";
@@ -89,5 +91,23 @@ describe("lists", () => {
     expect(rss).toContain("<title>News &lt;Today&gt; / @alice</title>");
     expect(rss).toContain('href="https://nitter.example/i/lists/99/rss"');
     expect(rss).toContain("<description>News &lt;Today&gt; by @alice</description>");
+  });
+
+  it("only advertises RSS on profile, account about, and list pages when enabled", () => {
+    const list = parseList({ data: { list: { id_str: "99", name: "News", user_results: { result: user } } } });
+    const profile = list.owner;
+    const timeline = { tweets: [] };
+
+    for (const enableRss of [undefined, true]) {
+      const profileHtml = renderProfilePage(profile, timeline, undefined, undefined, undefined, undefined, undefined, enableRss);
+      const listHtml = renderListPage(list, "tweets", timeline, undefined, undefined, undefined, enableRss);
+      const aboutHtml = renderAboutPage(profile, undefined, undefined, enableRss);
+
+      for (const [html, path] of [[profileHtml, "/alice/rss"], [listHtml, "/i/lists/99/rss"]]) {
+        expect(html.includes(`type="application/rss+xml" href="${path}"`)).toBe(Boolean(enableRss));
+        expect(html.includes(`class="icon-rss" title="RSS Feed" href="${path}"`)).toBe(Boolean(enableRss));
+      }
+      expect(aboutHtml.includes('class="icon-rss" title="RSS Feed" href="/alice/rss"')).toBe(Boolean(enableRss));
+    }
   });
 });

@@ -17,6 +17,7 @@ export function renderProfilePage(
   preferences: PagePreferences = { ...DEFAULT_PREFERENCES },
   currentCursor?: string,
   mediaView: MediaView = preferences.mediaView,
+  enableRss = false,
 ): string {
   const title = `${profile.name} (@${profile.username}) | nitter`;
   const base = `/${encodeURIComponent(profile.username)}`;
@@ -57,10 +58,10 @@ export function renderProfilePage(
   <link rel="icon" href="/favicon.ico">
   <link rel="stylesheet" href="/css/fontello.css">
   <link rel="stylesheet" href="/css/style.css">${themeLink(preferences)}${headScripts(preferences)}
-  <link rel="alternate" type="application/rss+xml" href="/${encodeURIComponent(profile.username)}/rss" title="RSS feed">
+  ${enableRss ? `<link rel="alternate" type="application/rss+xml" href="${base}/rss" title="RSS feed">` : ""}
 </head>
 <body${bodyClass(preferences)}>
-  ${renderNavbar(base, currentPath)}
+  ${renderNavbar(enableRss ? base : "", currentPath)}
   <div class="container">
     <main class="profile-tabs${gallery ? " media-only" : ""}">
       ${gallery || !profile.banner || preferences.hideBanner ? "" : `<div class="profile-banner"><a href="${escapeAttribute(mediaProxyUrl(profile.banner, preferences.proxyVideos))}" target="_blank" rel="noopener" aria-label="Open banner image"><img src="${escapeAttribute(mediaProxyUrl(profile.banner, preferences.proxyVideos))}" alt=""></a></div>`}

@@ -2,12 +2,14 @@ import { renderErrorPage, requestPath } from "../../src/render/profile";
 import { renderTimelineRss } from "../../src/render/rss";
 import { loadSessionPool } from "../../src/session-pool";
 import { preferencesFromRequest } from "../../src/preferences";
+import { rssEnabled, rssNotFound } from "../../src/serve/rss";
 import { fetchProfile, XApiError } from "../../src/x/client";
 import { ProfileNotFoundError } from "../../src/x/profile";
 import { AllSessionsLimitedError, withCookieSession } from "../../src/x/sessions";
 import { fetchProfileTimeline } from "../../src/x/timeline";
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
+  if (!rssEnabled(context.env)) return rssNotFound();
   const username = context.params.username;
   if (typeof username !== "string" || !/^[A-Za-z0-9_]{1,15}$/.test(username)) {
     return new Response(renderErrorPage("Invalid username", 400, requestPath(context.request)), {

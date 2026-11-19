@@ -6,6 +6,7 @@ import { loadSessionPool } from "../session-pool";
 import { XApiError } from "../x/client";
 import { fetchListById, fetchListBySlug, fetchListMembers, fetchListTimeline, ListNotFoundError } from "../x/list";
 import { AllSessionsLimitedError, withCookieSession } from "../x/sessions";
+import { rssEnabled } from "./rss";
 
 export async function serveListPage(
   request: Request,
@@ -26,7 +27,7 @@ export async function serveListPage(
         ]);
         return { list, members };
       });
-      return html(renderListPage(list, tab, undefined, members, preferences, cursor), 200);
+      return html(renderListPage(list, tab, undefined, members, preferences, cursor, rssEnabled(env)), 200);
     }
     const { list, timeline } = await withCookieSession(sessions, async (session) => {
       const [list, timeline] = await Promise.all([
@@ -35,7 +36,7 @@ export async function serveListPage(
       ]);
       return { list, timeline };
     });
-    return html(renderListPage(list, tab, timeline, undefined, preferences, cursor), 200);
+    return html(renderListPage(list, tab, timeline, undefined, preferences, cursor, rssEnabled(env)), 200);
   } catch (error) {
     return listError(error, { id, tab }, request);
   }

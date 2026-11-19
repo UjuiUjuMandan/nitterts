@@ -12,6 +12,7 @@
 		"NITTER_REPLACE_REDDIT": "",
 		"NITTER_PROXY_VIDEOS": "false",
 		"NITTER_HLS_PLAYBACK": "false",
+		"NITTER_ENABLE_RSS": "false",
 		"NITTER_THEME": "Auto"
 	},
 	"durable_objects": {

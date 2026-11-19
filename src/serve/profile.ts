@@ -6,6 +6,7 @@ import { ProfileNotFoundError } from "../x/profile";
 import { AllSessionsLimitedError, withCookieSession } from "../x/sessions";
 import { fetchProfileTimeline, photoRail, type ProfileTab } from "../x/timeline";
 import { fetchOptionalAccountInfo } from "./account-info";
+import { rssEnabled } from "./rss";
 
 export async function serveProfilePage(
   request: Request,
@@ -55,7 +56,7 @@ export async function serveProfilePage(
       },
     );
     const basedIn = profile.suspended ? "" : (await fetchOptionalAccountInfo(sessions, username, request))?.basedIn ?? "";
-    return html(renderProfilePage({ ...profile, basedIn }, timeline, tab, photos, preferences, cursor, mediaView), 200);
+    return html(renderProfilePage({ ...profile, basedIn }, timeline, tab, photos, preferences, cursor, mediaView, rssEnabled(env)), 200);
   } catch (error) {
     const notFound = error instanceof ProfileNotFoundError;
     const status = notFound ? 404 : error instanceof XApiError ? 502 : error instanceof AllSessionsLimitedError ? 503 : 500;

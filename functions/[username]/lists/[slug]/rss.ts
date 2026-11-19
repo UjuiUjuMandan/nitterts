@@ -1,6 +1,8 @@
 import { serveListSlugRssRedirect } from "../../../../src/serve/list";
+import { rssEnabled, rssNotFound } from "../../../../src/serve/rss";
 
 export const onRequestGet: PagesFunction<Env> = (context) => {
+  if (!rssEnabled(context.env)) return rssNotFound();
   const username = context.params.username;
   const slug = context.params.slug;
   if (typeof username !== "string" || typeof slug !== "string") {

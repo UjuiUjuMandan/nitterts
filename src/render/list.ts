@@ -11,6 +11,7 @@ export function renderListPage(
   members?: ListMembers,
   preferences: PagePreferences = { ...DEFAULT_PREFERENCES },
   currentCursor?: string,
+  enableRss = false,
 ): string {
   const base = `/i/lists/${encodeURIComponent(list.id)}`;
   const items = tab === "members"
@@ -32,10 +33,10 @@ export function renderListPage(
   <link rel="icon" href="/favicon.ico">
   <link rel="stylesheet" href="/css/fontello.css">
   <link rel="stylesheet" href="/css/style.css">${themeLink(preferences)}${headScripts(preferences)}
-  <link rel="alternate" type="application/rss+xml" href="${base}/rss" title="RSS feed">
+  ${enableRss ? `<link rel="alternate" type="application/rss+xml" href="${base}/rss" title="RSS feed">` : ""}
 </head>
 <body${bodyClass(preferences)}>
-  ${renderNavbar(base, `${base}${tab === "members" ? "/members" : ""}${currentCursor ? `?cursor=${encodeURIComponent(currentCursor)}` : ""}`)}
+  ${renderNavbar(enableRss ? base : "", `${base}${tab === "members" ? "/members" : ""}${currentCursor ? `?cursor=${encodeURIComponent(currentCursor)}` : ""}`)}
   <div class="container">
     <main class="timeline-container list-page">
       ${list.banner && !preferences.hideBanner ? `<div class="timeline-banner"><a href="${escapeAttribute(mediaProxyUrl(list.banner, preferences.proxyVideos))}" target="_blank" rel="noopener"><img src="${escapeAttribute(mediaProxyUrl(list.banner, preferences.proxyVideos))}" alt=""></a></div>` : ""}
