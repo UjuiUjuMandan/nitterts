@@ -19,6 +19,7 @@ export const BLOCKED_ASNS: readonly number[] = asnData.asns;
 /** Hand-added ASNs not present (yet) in the upstream list. */
 export const EXTRA_BLOCKED_ASNS: readonly number[] = [
   54600,  // PEG TECH INC
+  58087,  // datalix.de
   202662  // Hytron Network Services
 ];
 const BLOCKED_ASN_SET = new Set<number>([...BLOCKED_ASNS, ...EXTRA_BLOCKED_ASNS]);
