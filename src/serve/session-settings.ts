@@ -2,9 +2,9 @@ import { preferencesFromRequest } from "../preferences";
 import type { CookieSession } from "../session";
 import {
   assemblePool,
-  loadDonatedSessions,
-  loadOperatorSessions,
+  loadPoolSources,
   newStewardToken,
+  POOL_CACHE_TTL_MS,
   sessionCreatedAt,
   sessionLabel,
   stewardCookie,
@@ -30,6 +30,10 @@ const COOKIE_VALUE_PATTERN = /^[0-9a-f]{16,256}$/;
 const LABEL_PATTERN = /^anon-[0-9a-f]{10}$/;
 const DONATION_WINDOW_MS = 10 * 60_000;
 const DONATION_MAX_ATTEMPTS = 5;
+// A donor's own requests pick up their changes at once; other visitors only
+// once the per-isolate pool cache expires, which is what the notices below
+// promise and so is derived from the cache's TTL.
+const PROPAGATION_MINUTES = POOL_CACHE_TTL_MS / 60_000;
 
 // Isolate-local, best-effort throttle: every donation attempt costs a live X
 // request, so cap bursts per client IP. Ephemeral by design (isolates reset),
@@ -41,11 +45,11 @@ export async function serveSessionSettingsPage(request: Request, env: Env): Prom
   const params = effectiveRequestUrl(request).searchParams;
   const added = params.get("added");
   if (added && LABEL_PATTERN.test(added)) {
-    view.notice = `Session ${added} verified and stored. It can take up to a minute before it serves other visitors.`;
+    view.notice = `Session ${added} verified and stored. It can take up to ${PROPAGATION_MINUTES} minutes before it serves other visitors.`;
   } else if (params.get("updated") === "visibility") {
-    view.notice = "Visibility updated.";
+    view.notice = `Visibility updated. It can take up to ${PROPAGATION_MINUTES} minutes to reach other visitors.`;
   } else if (params.get("updated") === "revoked") {
-    view.notice = "Session removed. Log it out on X too if you want the cookies invalidated.";
+    view.notice = `Session removed. It can keep serving other visitors for up to ${PROPAGATION_MINUTES} minutes; log it out on X too to invalidate the cookies immediately.`;
   }
   return settingsHtml(renderSessionSettingsPage(preferencesFromRequest(request), view));
 }
@@ -64,8 +68,8 @@ export async function serveSessionSettingsUpdate(request: Request, env: Env): Pr
 
 async function buildView(request: Request, env: Env): Promise<SessionSettingsView> {
   const steward = stewardTokenFromRequest(request);
-  const donated = await loadDonatedSessions(env);
-  const pool = assemblePool(await loadOperatorSessions(env), donated, steward);
+  const { operator, donated } = await loadPoolSources(env, steward);
+  const pool = assemblePool(operator, donated, steward);
   const debug = await sessionDebug(pool);
   const donationById = new Map(donated.map((session) => [session.id, session] as const));
   const entries: PoolSessionView[] = pool.map((session) => {

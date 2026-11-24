@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CookieSession } from "../src/session";
 import {
   assemblePool,
@@ -6,6 +6,8 @@ import {
   loadOperatorSessions,
   loadSessionPool,
   newStewardToken,
+  POOL_CACHE_TTL_MS,
+  resetSessionPoolCache,
   sessionCreatedAt,
   sessionLabel,
   stewardTokenFromRequest,
@@ -16,13 +18,23 @@ import {
   OPERATOR_KEY,
   putOperatorSessions,
   putStewardSessions,
+  scanDonatedSessions,
   type DonatedSession,
 } from "../src/session-store";
 
+// In-memory KV with call counters and knobs for failing individual reads, so
+// tests can assert exactly what the pool cache kept off the real namespace.
 class FakeKV {
   private map = new Map<string, string>();
+  gets = 0;
+  lists = 0;
+  failsList = false;
+  unreadable = new Set<string>();
+  gate?: Promise<void>;
 
   async get(key: string, options?: { type?: string }): Promise<unknown> {
+    this.gets++;
+    if (this.unreadable.has(key)) throw new Error("kv down");
     const value = this.map.get(key);
     if (value === undefined) return null;
     return options?.type === "json" ? JSON.parse(value) : value;
@@ -37,6 +49,9 @@ class FakeKV {
   }
 
   async list(options?: { prefix?: string }): Promise<{ keys: Array<{ name: string }>; list_complete: true }> {
+    this.lists++;
+    if (this.failsList) throw new Error("kv down");
+    await this.gate;
     const prefix = options?.prefix ?? "";
     return {
       keys: [...this.map.keys()].filter((key) => key.startsWith(prefix)).sort().map((name) => ({ name })),
@@ -148,6 +163,16 @@ describe("session store", () => {
     expect(all.map((session) => session.id).sort()).toEqual(["100", "200"]);
   });
 
+  it("reports an unreadable record without dropping the other stewards' sessions", async () => {
+    const kv = new FakeKV() as unknown as KVNamespace;
+    await putStewardSessions(kv, steward, [donation("100", steward, "public")]);
+    const readable = [expect.objectContaining({ id: "100" })];
+    expect(await scanDonatedSessions(kv)).toEqual({ sessions: readable, complete: true });
+
+    await kv.put(`owner/${other}`, "not json");
+    expect(await scanDonatedSessions(kv)).toEqual({ sessions: readable, complete: false });
+  });
+
   it("drops malformed entries and enforces the owner key over stored tokens", async () => {
     const kv = new FakeKV() as unknown as KVNamespace;
     await kv.put(`owner/${steward}`, JSON.stringify([
@@ -185,6 +210,10 @@ describe("session store", () => {
 });
 
 describe("loadSessionPool / loadAllSessions", () => {
+  beforeEach(() => {
+    resetSessionPoolCache();
+  });
+
   it("serves operator sessions plus public and own private donations", async () => {
     const kv = new FakeKV() as unknown as KVNamespace;
     await putOperatorSessions(kv, [operator]);
@@ -227,5 +256,127 @@ describe("loadSessionPool / loadAllSessions", () => {
     await kv.put(OPERATOR_KEY, "not json");
     expect(await loadOperatorSessions({ SESSION_STORE: kv })).toEqual([]);
     expect(await loadOperatorSessions({})).toEqual([]);
+  });
+});
+
+describe("pool cache", () => {
+  const NOW = Date.parse("2026-11-24T00:00:00Z");
+  const anonymous = () => new Request("https://nitter.test/");
+  const asSteward = (token: string) => new Request("https://nitter.test/", {
+    headers: { cookie: `nitter_steward=${token}` },
+  });
+  const ids = (sessions: CookieSession[]) => sessions.map((session) => session.id);
+  // How to break the store, and what a request made during the breakage must
+  // still be served.
+  const OUTAGES: Array<[string, (store: FakeKV) => void, string[]]> = [
+    ["a rejected list", (store) => { store.failsList = true; }, [operator.id]],
+    ["an unreadable donation record", (store) => { store.unreadable.add(`owner/${steward}`); }, [operator.id]],
+    ["an unreadable operator record", (store) => { store.unreadable.add(OPERATOR_KEY); }, ["200"]],
+  ];
+
+  let store: FakeKV;
+  let kv: KVNamespace;
+  let testEnv: { SESSION_STORE: KVNamespace };
+
+  beforeEach(() => {
+    resetSessionPoolCache();
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    store = new FakeKV();
+    kv = store as unknown as KVNamespace;
+    testEnv = { SESSION_STORE: kv };
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("reads the store once per isolate until the cache expires", async () => {
+    await putOperatorSessions(kv, [operator]);
+    await putStewardSessions(kv, steward, [donation("100", steward, "public")]);
+
+    await loadSessionPool(testEnv, anonymous());
+    await loadSessionPool(testEnv, anonymous());
+    expect(store.lists).toBe(1);
+    // The operator record and the one donation record; reads are cached too.
+    expect(store.gets).toBe(2);
+
+    vi.setSystemTime(NOW + POOL_CACHE_TTL_MS - 1);
+    await loadSessionPool(testEnv, anonymous());
+    expect(store.lists).toBe(1);
+
+    vi.setSystemTime(NOW + POOL_CACHE_TTL_MS);
+    await loadSessionPool(testEnv, anonymous());
+    expect(store.lists).toBe(2);
+  });
+
+  it("serves changes to the store only once the cache expires", async () => {
+    await putOperatorSessions(kv, [operator]);
+    expect(ids(await loadSessionPool(testEnv, anonymous()))).toEqual([operator.id]);
+
+    await putStewardSessions(kv, steward, [donation("200", steward, "public")]);
+    expect(ids(await loadSessionPool(testEnv, anonymous()))).toEqual([operator.id]);
+
+    vi.setSystemTime(NOW + POOL_CACHE_TTL_MS);
+    expect(ids(await loadSessionPool(testEnv, anonymous()))).toEqual([operator.id, "200"]);
+  });
+
+  it("applies a donor's own changes at once while other visitors wait for the cache", async () => {
+    await putOperatorSessions(kv, [operator]);
+    await loadSessionPool(testEnv, anonymous());
+
+    await putStewardSessions(kv, steward, [
+      donation("101", steward, "public"),
+      donation("100", steward, "private"),
+    ]);
+    expect(ids(await loadSessionPool(testEnv, asSteward(steward)))).toEqual(["100", operator.id, "101"]);
+    expect(ids(await loadSessionPool(testEnv, anonymous()))).toEqual([operator.id]);
+
+    vi.setSystemTime(NOW + POOL_CACHE_TTL_MS);
+    expect(ids(await loadSessionPool(testEnv, anonymous()))).toEqual([operator.id, "101"]);
+
+    await putStewardSessions(kv, steward, []);
+    expect(ids(await loadSessionPool(testEnv, asSteward(steward)))).toEqual([operator.id]);
+    expect(ids(await loadSessionPool(testEnv, anonymous()))).toEqual([operator.id, "101"]);
+
+    vi.setSystemTime(NOW + 2 * POOL_CACHE_TTL_MS);
+    expect(ids(await loadSessionPool(testEnv, anonymous()))).toEqual([operator.id]);
+  });
+
+  it("drops a donor's cached sessions when their record cannot be read", async () => {
+    await putStewardSessions(kv, steward, [donation("101", steward, "public")]);
+    expect(ids(await loadSessionPool(testEnv, anonymous()))).toEqual(["101"]);
+
+    store.unreadable.add(`owner/${steward}`);
+    expect(ids(await loadSessionPool(testEnv, asSteward(steward)))).toEqual([]);
+  });
+
+  it.each(OUTAGES)("serves what loaded and retries on the next request after %s", async (_outage, breakStore, served) => {
+    await putOperatorSessions(kv, [operator]);
+    await putStewardSessions(kv, steward, [donation("200", steward, "public")]);
+
+    breakStore(store);
+    expect(ids(await loadSessionPool(testEnv, anonymous()))).toEqual(served);
+
+    store.failsList = false;
+    store.unreadable.clear();
+    expect(ids(await loadSessionPool(testEnv, anonymous()))).toEqual([operator.id, "200"]);
+    expect(store.lists).toBe(2);
+  });
+
+  it("shares one KV read between requests that arrive during a refresh", async () => {
+    await putOperatorSessions(kv, [operator]);
+    let release!: () => void;
+    store.gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    const first = loadSessionPool(testEnv, anonymous());
+    const second = loadSessionPool(testEnv, anonymous());
+    release();
+    const pools = await Promise.all([first, second]);
+
+    expect(pools.map(ids)).toEqual([[operator.id], [operator.id]]);
+    expect(store.lists).toBe(1);
   });
 });

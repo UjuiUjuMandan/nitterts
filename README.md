@@ -61,7 +61,9 @@ npm run seed:sessions -- --file my.jsonl --local
 ```
 
 Re-run it whenever a session logs out or gets rate-limited to death; it
-replaces the `operator/sessions` key wholesale.
+replaces the `operator/sessions` key wholesale. Each isolate caches the pool
+for 5 minutes, so a reseed takes up to that long to apply (restart
+`wrangler pages dev` to skip the wait locally).
 
 ## Visitor session donations (`/settings/sessions`)
 
@@ -84,13 +86,20 @@ page, served alongside the operator sessions from KV:
   session out on X invalidates it everywhere as a last resort).
 
 Donated sessions live in one KV record per donor (`owner/<token>`), so
-management is a single-key operation and a fresh donation may take up to ~60s
-to serve other visitors (KV list eventual consistency). `/.health` aggregates
-the shared pool; `/.sessions` (operator, `NITTER_DEBUG=true`) reports
-everything including private sessions.
+management is a single-key operation. A new donation, a visibility change, or a
+revocation applies to the donor's own requests at once and reaches other
+visitors when the pool cache expires (about 5 minutes, plus up to ~60s of KV
+list propagation). `/.health` aggregates the shared pool; `/.sessions`
+(operator, `NITTER_DEBUG=true`) reads the store uncached and reports everything
+including private sessions.
 
 ## Architecture notes
 
+- The session pool is read from KV at most once per isolate per 5 minutes
+  (`POOL_CACHE_TTL_MS` in `src/session-pool.ts`) instead of once per request:
+  every dynamic route needs the pool, and its KV list request is the most
+  expensive operation in this project ($5 per million on the Workers paid
+  plan). A read that fails in any part is served but never cached.
 - Account details (including "Based in") are fetched only on `/username/about`.
   Profile and search pages read cached details without fetching on a miss.
   Details expire after 24 hours in Cloudflare's regional Cache API; cache

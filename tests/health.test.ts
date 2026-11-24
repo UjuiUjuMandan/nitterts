@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { onRequestGet as serveHealth } from "../functions/.health";
 import { onRequestGet as serveSessions } from "../functions/.sessions";
 import type { CookieSession } from "../src/session";
+import { resetSessionPoolCache } from "../src/session-pool";
 import { putOperatorSessions } from "../src/session-store";
 import { installMetricsSink, resetMetricsSink } from "../src/x/metrics-sink";
 import { beginSessionRequest, endSessionRequest, recordApiStatus, recordLimitedSession, resetRateLimitTracking, sessionPoolDebug, sessionPoolHealth } from "../src/x/rate-limit";
@@ -54,6 +55,7 @@ describe("session pool health", () => {
   beforeEach(() => {
     resetRateLimitTracking();
     resetMetricsSink();
+    resetSessionPoolCache();
   });
 
   it("summarizes sessions and per-api request usage", () => {

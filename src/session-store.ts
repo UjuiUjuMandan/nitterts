@@ -7,7 +7,8 @@ import type { CookieSession } from "./session";
 // one-key read-modify-write that can never race across different stewards.
 // The shared pool is assembled by listing the "owner/" prefix, an eventually
 // consistent index maintained by KV itself, so a fresh donation may take up
-// to ~60 seconds to serve other visitors.
+// to ~60 seconds to appear in a listing (session-pool.ts caches listings on
+// top of that).
 
 export type SessionVisibility = "public" | "private";
 
@@ -120,7 +121,15 @@ export async function putStewardSessions(
 // donation time (then id) so pool order is deterministic regardless of KV key
 // ordering.
 export async function listDonatedSessions(kv: KVNamespace): Promise<DonatedSession[]> {
+  return (await scanDonatedSessions(kv)).sessions;
+}
+
+// Same listing, plus whether every record was read. `complete` is false when
+// one was skipped as unreadable, so a caller about to cache the result can
+// serve it but decline to keep it.
+export async function scanDonatedSessions(kv: KVNamespace): Promise<{ sessions: DonatedSession[]; complete: boolean }> {
   const collected: DonatedSession[] = [];
+  let complete = true;
   let cursor: string | undefined;
   do {
     const page = await kv.list({ prefix: OWNER_PREFIX, cursor });
@@ -131,11 +140,17 @@ export async function listDonatedSessions(kv: KVNamespace): Promise<DonatedSessi
         collected.push(...await getStewardSessions(kv, token));
       } catch {
         // One unreadable record must not take the whole pool down.
+        complete = false;
       }
     }
     cursor = page.list_complete ? undefined : page.cursor;
   } while (cursor !== undefined);
-  return collected.sort((a, b) => a.donatedAt - b.donatedAt || (a.id < b.id ? -1 : 1));
+  return { sessions: collected.sort(compareDonations), complete };
+}
+
+// Pool order for donations: oldest first, then by id.
+export function compareDonations(a: DonatedSession, b: DonatedSession): number {
+  return a.donatedAt - b.donatedAt || (a.id < b.id ? -1 : 1);
 }
 
 export function parseStewardRecord(token: string, value: unknown): DonatedSession[] {

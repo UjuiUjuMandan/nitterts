@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { serveSessionSettingsPage, serveSessionSettingsUpdate } from "../src/serve/session-settings";
 import type { CookieSession } from "../src/session";
 import { getStewardSessions, putOperatorSessions, putStewardSessions, type DonatedSession } from "../src/session-store";
-import { newStewardToken, sessionLabel } from "../src/session-pool";
+import { newStewardToken, resetSessionPoolCache, sessionLabel } from "../src/session-pool";
 import { resetMetricsSink } from "../src/x/metrics-sink";
 import { resetRateLimitTracking } from "../src/x/rate-limit";
 
@@ -105,6 +105,7 @@ describe("GET /settings/sessions", () => {
   beforeEach(() => {
     resetRateLimitTracking();
     resetMetricsSink();
+    resetSessionPoolCache();
   });
 
   it("lists pool sessions anonymously without leaking ids or usernames", async () => {
@@ -160,6 +161,7 @@ describe("POST /settings/sessions", () => {
   beforeEach(() => {
     resetRateLimitTracking();
     resetMetricsSink();
+    resetSessionPoolCache();
   });
 
   afterEach(() => {
@@ -223,6 +225,30 @@ describe("POST /settings/sessions", () => {
       ownerToken: token,
     });
     expect(location).toContain(sessionLabel(env, { id: BURNER_ID }));
+  });
+
+  it("shows a donor their new session at once, before the pool cache reaches other visitors", async () => {
+    mockXResponse(200, profileBody(BURNER_ID, "burner_acct"));
+    const kv = new FakeKV() as unknown as KVNamespace;
+    const env = { SESSION_STORE: kv };
+    // Another visitor has already warmed this isolate's view of an empty pool.
+    await serveSessionSettingsPage(get(`${ORIGIN}/settings/sessions`), env);
+
+    const response = await serveSessionSettingsUpdate(
+      post({ action: "donate", username: "burner_acct", auth_token: "a".repeat(32), ct0: "c".repeat(40), visibility: "private" }),
+      env,
+    );
+    const token = /nitter_steward=([0-9a-f]{64})/.exec(response.headers.get("set-cookie") ?? "")?.[1];
+    expect(token).toBeDefined();
+
+    const mine = await (await serveSessionSettingsPage(get(`${ORIGIN}${response.headers.get("location")}`, token), env)).text();
+    expect(mine).toContain("Your donated sessions (1)");
+    expect(mine).toContain(sessionLabel(env, { id: BURNER_ID }));
+    expect(mine).toContain("It can take up to 5 minutes before it serves other visitors");
+
+    const theirs = await (await serveSessionSettingsPage(get(`${ORIGIN}/settings/sessions`), env)).text();
+    expect(theirs).not.toContain("Your donated sessions");
+    expect(theirs).not.toContain(sessionLabel(env, { id: BURNER_ID }));
   });
 
   it("explains rejection when X refuses the donated cookies", async () => {
